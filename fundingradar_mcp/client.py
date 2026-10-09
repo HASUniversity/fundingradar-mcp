@@ -77,19 +77,32 @@ class FundingRadarApi:
     def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         """GET one endpoint and return its parsed body ({"data": ..., "meta": ...})."""
         query = self._encode(params or {})
-        url = f"{self._base}/{path.lstrip('/')}{query}"
+        return self._send(f"{self._base}/{path.lstrip('/')}{query}", None)
 
+    def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST arguments as a JSON body and return the parsed body.
+
+        The search goes this way: the host in front of the API answers its own 404 on a request
+        whose query string would run the expanded search (any parameter name, any value, while the
+        same search with `literal=1` passes). A body is not part of the query string, so it gets
+        through. The endpoint is read-only, so a body changes nothing about what the API can do.
+        """
+        clean = {key: value for key, value in payload.items() if value is not None and value != ""}
+        return self._send(f"{self._base}/{path.lstrip('/')}", clean)
+
+    def _send(self, url: str, body: dict[str, Any] | None) -> dict[str, Any]:
+        """Try the transports in order until one reaches the application."""
         order = self._transport_order()
         host_rejections: list[str] = []
         for transport in order:
             try:
-                body = self._request(url, transport)
+                parsed = self._request(url, transport, body)
             except _HostRejection as rejection:
                 host_rejections.append(f"{transport}: {rejection}")
                 self._transport = None
                 continue
             self._transport = transport
-            return body
+            return parsed
 
         raise ApiError(
             "the host in front of the FundingRadar API refused every request "
@@ -117,8 +130,15 @@ class FundingRadarApi:
             headers["X-FundingRadar-Token"] = self._token
         return headers
 
-    def _request(self, url: str, transport: str) -> dict[str, Any]:
-        request = urllib.request.Request(url, headers=self._headers(transport), method="GET")
+    def _request(self, url: str, transport: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+        headers = self._headers(transport)
+        if body is None:
+            request = urllib.request.Request(url, headers=headers, method="GET")
+        else:
+            headers["Content-Type"] = "application/json"
+            request = urllib.request.Request(
+                url, headers=headers, data=json.dumps(body).encode("utf-8"), method="POST"
+            )
         try:
             with urllib.request.urlopen(request, timeout=self._timeout) as response:
                 payload = response.read().decode("utf-8", "replace")

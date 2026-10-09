@@ -63,30 +63,33 @@ class FundingRadarService:
         if sort_by is not None and sort_by not in SORTS:
             raise ValueError("sort_by must be one of: " + ", ".join(SORTS))
 
-        body = self._api.get(
-            "/api/v1/calls.php",
-            {
-                "query": query,
-                "source": source,
-                "research_group": research_group,
-                "focus_area": focus_area,
-                "status": status,
-                "funding_type": funding_type,
-                "language": language,
-                "deadline_after": deadline_after,
-                "deadline_before": deadline_before,
-                "sort_by": sort_by,
-                "include_closed": include_closed,
-                "include_ineligible": include_ineligible,
-                # The API expands the question by default (Dutch/English equivalents, and the
-                # call's own URLs count as a hit); without it a whole paragraph finds nothing.
-                # The flag is an opt-out because the host in front of the API answers its own
-                # 404 on `q=…&expand=1` — see docs/api-v1.md in the app repository.
-                "literal": True if (query and not expand) else None,
-                "limit": limit,
-                "offset": offset,
-            },
-        )
+        params = {
+            "query": query,
+            "source": source,
+            "research_group": research_group,
+            "focus_area": focus_area,
+            "status": status,
+            "funding_type": funding_type,
+            "language": language,
+            "deadline_after": deadline_after,
+            "deadline_before": deadline_before,
+            "sort_by": sort_by,
+            "include_closed": include_closed,
+            "include_ineligible": include_ineligible,
+            # The API expands the question by default (Dutch/English equivalents, and the call's
+            # own URLs count as a hit); without it a whole paragraph finds nothing. `literal=1` is
+            # the opt-out, and it also passes the host, which 404s a query string that would run
+            # the expanded search — see docs/api-v1.md in the app repository.
+            "literal": True if (query and not expand) else None,
+            "limit": limit,
+            "offset": offset,
+        }
+        # A search goes in a POST body: the host in front of the API answers its own 404 on a
+        # request whose query string would run the expanded search, and a body is not part of it.
+        if query:
+            body = self._api.post_json("/api/v1/calls.php", params)
+        else:
+            body = self._api.get("/api/v1/calls.php", params)
         meta = body.get("meta", {})
         return {
             "total_matched": meta.get("total", 0),

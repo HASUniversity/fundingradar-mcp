@@ -22,10 +22,16 @@ class FakeApi:
 
     def __init__(self, responses: dict | None = None) -> None:
         self.requests: list[tuple[str, dict]] = []
+        self.posted: list[tuple[str, dict]] = []
         self.responses = responses or {}
 
     def get(self, path: str, params: dict | None = None) -> dict:
         self.requests.append((path, params or {}))
+        return self.responses.get(path, {"data": [], "meta": {}})
+
+    def post_json(self, path: str, payload: dict) -> dict:
+        self.requests.append((path, payload))
+        self.posted.append((path, payload))
         return self.responses.get(path, {"data": [], "meta": {}})
 
 
@@ -203,6 +209,10 @@ class SearchExpansionTests(unittest.TestCase):
         self.assertIsNone(params["literal"], "the server expands unless asked otherwise")
         self.assertEqual(result["searched_terms"], ["bodemkwaliteit", "soil"])
         self.assertEqual(result["total_matched"], 210)
+        self.assertEqual(len(api.posted), 1,
+                         "a search travels in a POST body: the host 404s a query string that "
+                         "would run the expanded search")
+        self.assertEqual(api.requests[0][1]["query"], "bodemkwaliteit en water")
 
     def test_expansion_can_be_turned_off_with_an_opt_out(self) -> None:
         api = self._api()
@@ -219,6 +229,7 @@ class SearchExpansionTests(unittest.TestCase):
         # The client drops unset values, so neither parameter reaches the API.
         self.assertNotIn("literal=", Client._encode(params))
         self.assertNotIn("query=", Client._encode(params))
+        self.assertEqual(api.posted, [], "without a query there is nothing to post")
 
 
 class ReadCallPageTests(unittest.TestCase):

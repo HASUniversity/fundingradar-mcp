@@ -71,6 +71,10 @@ lees dat en stuur bij als je onderwerp er niet in zit. Verder dan vier woorden e
 per woord gaat het niet, en stopwoorden of te algemene woorden (health, management, kwaliteit)
 worden overgeslagen.
 
+De zoekopdracht gaat als **POST-body** naar de API: de host blokkeert een query-string die de
+uitgebreide zoekopdracht zou uitvoeren, en een body is geen query-string. Filteren zonder
+zoekterm blijft een gewone GET.
+
 Sweep liever meerdere assen dan één term: onderwerp (bodem, water, ai), methode (monitoring,
 sensor, remote sensing), sector (glastuinbouw, veehouderij, voeding, verpakking). En combineer
 dit met `calls_for_research_group`: dat is de semantische route, want de pijplijn matchte elke
