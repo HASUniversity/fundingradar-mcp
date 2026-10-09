@@ -133,6 +133,10 @@ def search_calls(
         str | None,
         Field(description="Result order: " + ", ".join(SORTS) + ". Default deadline_asc (nearest deadline first)."),
     ] = None,
+    include_closed: Annotated[
+        bool,
+        Field(description="Also return calls that are closed or past their deadline. Off by default: an agent asking 'is there a call for this?' should get calls it can still act on, not the archive."),
+    ] = False,
     include_ineligible: Annotated[
         bool,
         Field(description="Include calls the pipeline classified as not eligible for HAS; off by default."),
@@ -140,7 +144,11 @@ def search_calls(
     limit: Annotated[int, Field(description="Page size, 1-100.", ge=1, le=100)] = 20,
     offset: Annotated[int, Field(description="Rows to skip, for paging.", ge=0)] = 0,
 ) -> dict[str, Any]:
-    """Search funding calls with optional filters; returns a page plus the total match count."""
+    """Search funding calls with optional filters; returns a page plus the total match count.
+
+    By default only calls that can still be acted on: not a closed round, and not past the
+    deadline. Pass include_closed=True for the archive, or name an explicit status.
+    """
     with _anticipated_failure():
         return _service().search_calls(
             query=query,
@@ -153,6 +161,7 @@ def search_calls(
             deadline_after=deadline_after,
             deadline_before=deadline_before,
             sort_by=sort_by,
+            include_closed=include_closed,
             include_ineligible=include_ineligible,
             limit=limit,
             offset=offset,
@@ -183,12 +192,15 @@ def calls_for_research_group(
     ],
     include_closed: Annotated[
         bool,
-        Field(description="Include calls whose status is 'closed'; off by default."),
+        Field(description="Also include matches that are closed or past their deadline; off by default, so the answer is what the group can still act on."),
     ] = False,
     limit: Annotated[int, Field(description="Page size, 1-100.", ge=1, le=100)] = 20,
     offset: Annotated[int, Field(description="Rows to skip, for paging.", ge=0)] = 0,
 ) -> dict[str, Any]:
-    """Calls the pipeline matched to one research group, with the match reason and whether the group was notified."""
+    """Calls the pipeline matched to one research group, with the match reason and whether the group was notified.
+
+    By default only matches that can still be acted on: not closed, and the deadline not passed.
+    """
     with _anticipated_failure():
         return _service().calls_for_research_group(
             research_group=research_group,

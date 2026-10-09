@@ -76,6 +76,17 @@ class SearchCallsTests(unittest.TestCase):
         FundingRadarService(api).search_calls(sort_by="budget_desc")
         self.assertEqual(api.requests[0][1]["sort_by"], "budget_desc")
 
+    def test_only_actionable_calls_are_requested_by_default(self) -> None:
+        # The API applies the rule; the client must not accidentally ask for the archive.
+        api = FakeApi()
+        FundingRadarService(api).search_calls()
+        self.assertEqual(api.requests[0][1]["include_closed"], False)
+
+    def test_include_closed_is_passed_through(self) -> None:
+        api = FakeApi()
+        FundingRadarService(api).search_calls(include_closed=True)
+        self.assertEqual(api.requests[0][1]["include_closed"], True)
+
 
 class GetCallTests(unittest.TestCase):
     def test_maps_to_the_call_endpoint_and_reshapes_the_payload(self) -> None:

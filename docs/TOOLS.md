@@ -19,10 +19,18 @@ Error executing tool calls_for_research_group: HTTP 404: Unknown research group:
 Error executing tool get_call: HTTP 401: Invalid or expired API token (the API token is missing, revoked or expired — create a new one in FundingRadar under Settings → API access)
 ```
 
-**Twee standaardfilters van de applicatie** verklaren waarom dit minder rijen kan geven dan een
-ruwe telling in de database: calls die de pijplijn als niet-passend voor HAS classificeerde, en
-calls met een deadline vóór 2020, zijn verborgen. `include_ineligible=True` toont de eerste
-groep; een expliciete `deadline_after` vervangt de 2020-grens.
+**Standaardfilters van de applicatie** verklaren waarom dit minder rijen kan geven dan een
+ruwe telling in de database. Drie dingen staan standaard uit:
+
+1. **Calls waar niets meer mee kan** — gesloten rondes (`closed`, `intake_closed`) en calls
+   waarvan de deadline is gepasseerd. Dit is de belangrijkste: een agent die "is hier een call
+   voor?" beantwoordt, hoort geen call uit 2022 te noemen. `include_closed=True` opent het
+   archief; een expliciete `status` zet de filter ook uit.
+2. Calls die de pijplijn als niet-passend voor HAS classificeerde → `include_ineligible=True`.
+3. Calls met een deadline vóór 2020 → een expliciete `deadline_after` vervangt die grens.
+
+Eén definitie geldt overal: `CallRepository::ACTIONABLE_SQL` in de FundingRadar-repo, dezelfde
+regel die de lectoraattellingen (`matched_open_calls`) gebruiken.
 
 ---
 
@@ -39,11 +47,14 @@ groep; een expliciete `deadline_after` vervangt de 2020-grens.
 | `language` | string | — | `nl` of `en` |
 | `deadline_after` / `deadline_before` | date | — | Deadline op of na / op of vóór deze datum |
 | `sort_by` | string | `deadline_asc` | `deadline_asc`, `deadline_strict`, `deadline_desc`, `created_at_desc`, `created_at_asc`, `title_asc`, `title_desc`, `budget_desc`, `budget_asc`, `status_priority` |
+| `include_closed` | bool | `false` | Ook calls tonen waar niets meer mee kan: gesloten rondes en deadlines die zijn gepasseerd |
 | `include_ineligible` | bool | `false` | Ook calls tonen die als niet-passend voor HAS zijn geclassificeerd |
 | `limit` / `offset` | int | 20 / 0 | Paginering |
 
-Sortering standaard: dichtstbijzijnde deadline eerst, zonder deadline achteraan. Zonder `status`
-of `deadline_after` krijg je ook de gesloten calls (in productie het grootste deel).
+Sortering standaard: dichtstbijzijnde deadline eerst, zonder deadline achteraan. Standaard krijg
+je alleen calls waar nog iets mee kan (niet gesloten, deadline niet gepasseerd); met
+`include_closed=True`, een expliciete `status` of een `deadline_before` in het verleden krijg je
+het archief erbij.
 
 Elke call in het resultaat bevat de dashboardvelden plus `research_group_count`, `tags`,
 `research_groups` (id + naam) en `is_favorited`. `raw_content` (de volledige scrape-pagina) wordt
