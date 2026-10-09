@@ -126,3 +126,11 @@ standard library.
   database (die bevat ook `users.password_hash` en sessies).
 - **Geen CORS.** De API is bedoeld voor scripts, servers en agents; een browser kan er niet
   bij.
+
+## Hoe deze server is opgebouwd
+
+Zeven read-only tools, een resource en twee prompts, over stdio, met annotaties die kloppen (de
+databasetools zijn geen open world, `read_call_page` wel), `brief` om context te sparen, en
+`instructions` die elke client bij het verbinden meekrijgt: waarvoor FundingRadar dient, hoe je het
+onderwerp zoekt in plaats van de vraag, hoe je status en deadline moet lezen, en dat je de
+bronpagina leest als het antwoord daarvan afhangt. Details en afwegingen: [docs/TOOLS.md](docs/TOOLS.md).

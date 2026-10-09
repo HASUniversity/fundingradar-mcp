@@ -204,6 +204,20 @@ def main() -> int:
         check("query" in sample.get("inputSchema", {}).get("properties", {}), "search_calls exposes its parameters")
         check(bool(sample.get("description")), "tools carry a description for the client")
 
+        # Annotations tell a client what a tool does to the world: these read a database we
+        # control (closed world, repeatable), except read_call_page, which fetches a live page.
+        annotations = {tool["name"]: (tool.get("annotations") or {})
+                       for tool in (listing.get("result") or {}).get("tools", [])}
+        for name, hints in annotations.items():
+            check(hints.get("readOnlyHint") is True, f"{name} is announced as read-only")
+            check(hints.get("destructiveHint") is False, f"{name} is announced as non-destructive")
+        check(annotations["search_calls"].get("openWorldHint") is False,
+              "the database tools are announced as a closed world")
+        check(annotations["search_calls"].get("idempotentHint") is True,
+              "the same query gives the same answer, and says so")
+        check(annotations["read_call_page"].get("openWorldHint") is True,
+              "read_call_page is announced as reaching outside (the funder's page)")
+
         resources = client.request("resources/list")
         resource_uris = [entry.get("uri") for entry in (resources.get("result") or {}).get("resources", [])]
         check(True, f"resources/list answered ({len(resource_uris)} static resource(s))")
@@ -219,6 +233,35 @@ def main() -> int:
             f"got {template_uris}",
         )
         print(f"resource templates: {template_uris}")
+
+        # Prompts are the capability for "how this house works": a client can offer them as
+        # commands, and the text carries the workflow and the report shape.
+        prompt_listing = client.request("prompts/list")
+        prompts = {entry["name"]: entry for entry in (prompt_listing.get("result") or {}).get("prompts", [])}
+        check({"vind_funding_voor_tekst", "rapporteer_calls"} <= set(prompts),
+              "prompts/list returns the two documented prompts", f"got {sorted(prompts)}")
+        for name, entry in prompts.items():
+            check(bool(entry.get("description")), f"prompt {name} carries a description")
+
+        prompt = client.request("prompts/get", {
+            "name": "vind_funding_voor_tekst",
+            "arguments": {"tekst": "Onderzoek naar bodemkwaliteit in de glastuinbouw"},
+        })
+        prompt_text = " ".join(
+            message.get("content", {}).get("text", "")
+            for message in (prompt.get("result") or {}).get("messages", [])
+        )
+        check("bodemkwaliteit in de glastuinbouw" in prompt_text,
+              "prompts/get passes the argument through", prompt_text[:120])
+        for needle, why in (
+            ("search_calls", "it names the search tool"),
+            ("searched_terms", "it says to check how the question was interpreted"),
+            ("calls_for_research_group", "it names the semantic route"),
+            ("read_call_page", "it says to read the source for the status"),
+            ("URL", "it asks for the URL in the report"),
+        ):
+            check(needle in prompt_text, f"the workflow prompt mentions {needle} ({why})")
+        print(f"prompts: {sorted(prompts)}")
 
         if has_credentials:
             groups = payload_of(client.call_tool("list_research_groups", {}))

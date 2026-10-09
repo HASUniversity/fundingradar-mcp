@@ -55,6 +55,7 @@ onderaan voor het verschil en wanneer je welke doorgeeft.
 | `sort_by` | string | `deadline_asc` | `deadline_asc`, `deadline_strict`, `deadline_desc`, `created_at_desc`, `created_at_asc`, `title_asc`, `title_desc`, `budget_desc`, `budget_asc`, `status_priority` |
 | `include_closed` | bool | `false` | Ook calls tonen waar niets meer mee kan: gesloten rondes en deadlines die zijn gepasseerd |
 | `include_ineligible` | bool | `false` | Ook calls tonen die als niet-passend voor HAS zijn geclassificeerd |
+| `brief` | bool | `false` | Alleen de velden om te beoordelen en te openen (id, titel, bron, status, deadline, `url`, `tracked_url`) in plaats van het hele record van ~40 velden. Voor scannen en lange lijsten; `get_call` haalt het volledige record op |
 | `limit` / `offset` | int | 20 / 0 | Paginering |
 
 Sortering standaard: dichtstbijzijnde deadline eerst, zonder deadline achteraan. Standaard krijg
@@ -213,6 +214,34 @@ Geef bij een mens dus `tracked_url` en bij een machine die de pagina gaat lezen 
 klikteller is een omweg, geen inhoud.
 
 ---
+
+## Prompts
+
+Twee prompts, zodat een client ze als commando kan aanbieden in plaats van dat elke agent de
+werkwijze opnieuw moet raden:
+
+| Prompt | Argument | Wat hij doet |
+|---|---|---|
+| `vind_funding_voor_tekst` | `tekst` | De werkwijze voor "welke funding past bij dit plan": onderwerp uit de tekst halen, over assen sweepen, de lectoraatsmatches erbij, de bronpagina lezen, rapporteren in de vaste vorm |
+| `rapporteer_calls` | `onderwerp` | De rapportvorm van dit huis: tabel per call, altijd de URL, drie blokken (nog te grijpen / gesloten / bewust niet meegenomen), en benoemen wat niet te verifieren was |
+
+## Hoe deze server zich aan de spec houdt
+
+- **Annotaties kloppen.** Alle tools zijn `readOnlyHint` en niet-destructief; de databasetools zijn
+  `idempotentHint` met `openWorldHint: false` (een database die wij beheren), en `read_call_page`
+  juist `openWorldHint: true` met `idempotentHint: false` - die haalt een levende pagina op.
+- **Een kanaal per antwoord.** Tools geven een JSON-object terug dat de SDK als tekstblok doorgeeft;
+  er gaat geen afwijkende `structuredContent` naast, want clients die beide kanalen krijgen laten
+  het tekstblok stil vallen (bekende voetangel). Geen `outputSchema`: de rijen spiegelen de API met
+  ~40 velden, en een schema zou dat dupliceren zonder dat een client er iets aan heeft.
+- **Zeven tools**, binnen de 5-15 die de praktijk aanhoudt, met specifieke namen in plaats van
+  generieke.
+- **Context is schaars:** `brief` om te scannen, `limit`/`offset` met `has_more`, en
+  `searched_terms` zodat een agent ziet wat er werkelijk gezocht is.
+- **Fouten komen als `isError` met een actionable melding** (bv. "maak een nieuw token aan onder
+  Settings - API access"), zodat de agent kan bijsturen.
+- **Niets naar stdout behalve het protocol** (gecontroleerd), geen credentials in logs, en de
+  server draait over stdio.
 
 ## Resource `fundingradar://call/{public_id}`
 

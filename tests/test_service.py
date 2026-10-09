@@ -8,6 +8,7 @@ Run from the repository root:  python -m unittest discover -s tests -t .
 
 from __future__ import annotations
 
+import json
 import unittest
 from unittest import mock
 
@@ -230,6 +231,53 @@ class SearchExpansionTests(unittest.TestCase):
         self.assertNotIn("literal=", Client._encode(params))
         self.assertNotIn("query=", Client._encode(params))
         self.assertEqual(api.posted, [], "without a query there is nothing to post")
+
+
+class BriefRowsTests(unittest.TestCase):
+    """brief=True keeps what an agent needs to judge and open a call, and drops the rest."""
+
+    def _api(self):
+        full = {
+            "id": 7, "public_id": "abc", "title": "Bodem en water", "source": "RVO",
+            "status": "open", "deadline": "2027-03-31", "url": "https://example.org/c",
+            "tracked_url": "https://dilab.has.nl/showcases/fundingradar/api/click.php?call_id=7",
+            "description": "x" * 500, "budget_min": 1000, "budget_max": 250000,
+            "eligibility_reason": "y" * 200, "themes": ["bodem"], "focus_areas": ["onderzoek"],
+        }
+        return FakeApi({
+            "/api/v1/calls.php": {"data": [full], "meta": {"total": 1, "count": 1}},
+            "/api/v1/research_groups.php": {
+                "data": {"research_group": {"slug": "g"}, "matches": [dict(full, call_id=7, slug="g", match_reason="raakt bodem")]},
+                "meta": {"total": 1, "count": 1},
+            },
+        })
+
+    def test_search_returns_the_whole_record_by_default(self) -> None:
+        result = FundingRadarService(self._api()).search_calls(query="bodem")
+        self.assertIn("description", result["calls"][0])
+        self.assertIn("budget_max", result["calls"][0])
+
+    def test_search_brief_keeps_the_identifying_and_actionable_fields(self) -> None:
+        result = FundingRadarService(self._api()).search_calls(query="bodem", brief=True)
+        row = result["calls"][0]
+        for kept in ("id", "public_id", "title", "source", "status", "deadline", "url", "tracked_url"):
+            self.assertIn(kept, row)
+        for dropped in ("description", "budget_max", "eligibility_reason", "themes"):
+            self.assertNotIn(dropped, row)
+        self.assertLess(len(json.dumps(row)), 400, "een brief-rij is klein genoeg om te scannen")
+
+    def test_group_matches_brief_keeps_the_match_reason(self) -> None:
+        result = FundingRadarService(self._api()).calls_for_research_group(
+            research_group="g", brief=True
+        )
+        row = result["matches"][0]
+        self.assertEqual(row["match_reason"], "raakt bodem")
+        self.assertEqual(row["call_id"], 7)
+        self.assertNotIn("description", row)
+
+    def test_group_matches_are_full_without_brief(self) -> None:
+        result = FundingRadarService(self._api()).calls_for_research_group(research_group="g")
+        self.assertIn("description", result["matches"][0])
 
 
 class ReadCallPageTests(unittest.TestCase):

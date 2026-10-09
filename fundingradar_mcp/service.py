@@ -29,6 +29,24 @@ STATS_GROUPS = (
     "source", "month", "status", "language", "funding_type", "focus_area", "research_group",
 )
 
+#: The fields a *brief* row keeps: enough to judge a call and to open it, not the whole record.
+#: Context is the scarce resource — a full call row is ~40 fields and a page of them drowns the
+#: conversation — so the list tools can return this instead.
+BRIEF_CALL_FIELDS = (
+    "id", "call_id", "public_id", "title", "source", "status", "deadline", "url", "tracked_url",
+)
+BRIEF_MATCH_FIELDS = BRIEF_CALL_FIELDS + (
+    "slug", "name", "matched_by", "match_reason", "email_sent",
+)
+
+
+def _brief(rows: list[Any], fields: tuple[str, ...] = BRIEF_CALL_FIELDS) -> list[Any]:
+    """Trim rows to the fields an agent needs to judge and open a call."""
+    return [
+        {key: row[key] for key in fields if key in row} if isinstance(row, dict) else row
+        for row in rows
+    ]
+
 
 class FundingRadarService:
     """Read-only view of FundingRadar, over the public API."""
@@ -52,6 +70,7 @@ class FundingRadarService:
         include_closed: Any = False,
         include_ineligible: Any = False,
         expand: Any = True,
+        brief: Any = False,
         limit: Any = 20,
         offset: Any = 0,
     ) -> dict[str, Any]:
@@ -100,7 +119,7 @@ class FundingRadarService:
             # How the question was interpreted: the words that were actually searched, so an
             # agent can see why something did or did not come back.
             "searched_terms": meta.get("expanded_terms", []),
-            "calls": body.get("data", []),
+            "calls": _brief(body.get("data", [])) if brief else body.get("data", []),
         }
 
     def get_call(self, public_id: Any) -> dict[str, Any]:
@@ -145,6 +164,7 @@ class FundingRadarService:
         *,
         research_group: Any,
         include_closed: Any = False,
+        brief: Any = False,
         limit: Any = 20,
         offset: Any = 0,
     ) -> dict[str, Any]:
@@ -167,7 +187,7 @@ class FundingRadarService:
             "offset": meta.get("offset", offset),
             "limit": meta.get("limit", limit),
             "has_more": meta.get("has_more", False),
-            "matches": data.get("matches", []),
+            "matches": _brief(data.get("matches", []), BRIEF_MATCH_FIELDS) if brief else data.get("matches", []),
         }
 
     def list_sources(self, *, active_only: Any = True) -> dict[str, Any]:

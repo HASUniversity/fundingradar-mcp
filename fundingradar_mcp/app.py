@@ -107,7 +107,15 @@ server = MCPServer(
     version=__version__,
 )
 
-_READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, openWorldHint=True)
+# Read-only over a database we control: nothing here touches the open world, and the same
+# arguments always give the same answer, so the hints say exactly that.
+_READ_ONLY = ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False
+)
+# read_call_page is the exception: it fetches the funder's own page, so it *does* reach outside.
+_READ_ONLY_OPEN = ToolAnnotations(
+    readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True
+)
 
 _api: FundingRadarApi | None = None
 
@@ -192,6 +200,14 @@ def search_calls(
             "what was looked for. Set False only when you need one literal word."
         )),
     ] = True,
+    brief: Annotated[
+        bool,
+        Field(description=(
+            "Return a trimmed row per call (id, title, source, status, deadline, url, tracked_url) "
+            "instead of the whole ~40-field record. Use it for scanning and for long lists; fetch "
+            "the full record with get_call for the candidates that survive."
+        )),
+    ] = False,
     limit: Annotated[int, Field(description="Page size, 1-100.", ge=1, le=100)] = 20,
     offset: Annotated[int, Field(description="Rows to skip, for paging.", ge=0)] = 0,
 ) -> dict[str, Any]:
@@ -225,6 +241,7 @@ def search_calls(
             include_closed=include_closed,
             include_ineligible=include_ineligible,
             expand=expand,
+            brief=brief,
             limit=limit,
             offset=offset,
         )
@@ -249,7 +266,7 @@ def get_call(
 @server.tool(
     name="read_call_page",
     title="Read a call's own page",
-    annotations=_READ_ONLY,
+    annotations=_READ_ONLY_OPEN,
 )
 def read_call_page(
     public_id: Annotated[
@@ -286,6 +303,13 @@ def calls_for_research_group(
         bool,
         Field(description="Also include matches that are closed or past their deadline; off by default, so the answer is what the group can still act on."),
     ] = False,
+    brief: Annotated[
+        bool,
+        Field(description=(
+            "Return a trimmed match per call (id, title, status, deadline, url, tracked_url, "
+            "matched_by, match_reason) instead of the whole record. Use it for long lists."
+        )),
+    ] = False,
     limit: Annotated[int, Field(description="Page size, 1-100.", ge=1, le=100)] = 20,
     offset: Annotated[int, Field(description="Rows to skip, for paging.", ge=0)] = 0,
 ) -> dict[str, Any]:
@@ -299,6 +323,7 @@ def calls_for_research_group(
         return _service().calls_for_research_group(
             research_group=research_group,
             include_closed=include_closed,
+            brief=brief,
             limit=limit,
             offset=offset,
         )
@@ -354,6 +379,84 @@ def funding_call_resource(public_id: str) -> str:
     """Expose one call as a resource, for clients that read resources instead of calling tools."""
     with _anticipated_failure():
         return json.dumps(_service().get_call(public_id), ensure_ascii=False, indent=2)
+
+
+@server.prompt(
+    name="vind_funding_voor_tekst",
+    title="Vind funding bij een stuk tekst",
+    description="Zoek de calls die passen bij een projectidee, vraag of plan, en rapporteer ze.",
+)
+def vind_funding_voor_tekst(tekst: str) -> str:
+    """Vind de funding calls die passen bij een stuk tekst, met de werkwijze die werkt.
+
+    Args:
+        tekst: De projecttekst, onderzoeksvraag of het plan waarvoor funding gezocht wordt.
+    """
+    return f"""\
+Zoek de funding calls die passen bij deze tekst:
+
+---
+{tekst}
+---
+
+Werk zo, in deze volgorde:
+
+1. Haal het **onderwerp** uit de tekst en niet de vraag: welke gewassen, technologieën,
+   maatregelen en sectoren noemt hij? Kies 3-5 kernwoorden.
+2. `search_calls(query="<kernwoorden>")` — de zoekopdracht breidt zelf uit naar
+   Nederlandse/Engelse synoniemen en laat de URL's van calls meetellen. Sweep daarna nog
+   één of twee assen apart (bijvoorbeeld de methode: monitoring, sensor, remote sensing; of
+   de sector: glastuinbouw, veehouderij, voeding). Lees `searched_terms` in het antwoord:
+   staat het onderwerp er niet in, stuur dan bij.
+3. `list_research_groups` en dan `calls_for_research_group` voor de 2-3 lectoraten die
+   inhoudelijk het dichtst bij de tekst liggen: dat is de semantische route (de pijplijn
+   matchte die calls zelf, met een reden in `match_reason`).
+4. `read_call_page` voor de 3-5 beste kandidaten: de opgeslagen status en deadline kunnen
+   achterlopen, de pagina van de fondsverstrekker is de bron. Lukt lezen niet, zeg dat dan.
+5. Rapporteer per call in een tabel: titel · fondsverstrekker · status · deadline · budget ·
+   rol voor HAS · één regel waarom het past · **de URL**. Splits in (A) past en is nog te
+   grijpen, (B) past maar is gesloten (kader of herhalingsronde), (C) wat je bewust niet
+   meenam en waarom.
+6. Noem expliciet wat je niet kon verifiëren (statussemantiek, lege budgetten, een pagina die
+   niet te lezen was) en eindig met de stap die de vraag echt beslecht (wie mag aanvragen,
+   welke cofinanciering, welke consortium-eisen).
+
+Antwoord in de taal van de vraag."""
+
+
+@server.prompt(
+    name="rapporteer_calls",
+    title="Rapportvorm voor funding calls",
+    description="De vaste vorm waarin funding calls gerapporteerd worden (tabel, blokken, URL).",
+)
+def rapporteer_calls(onderwerp: str) -> str:
+    """De rapportvorm die dit huis gebruikt voor funding calls.
+
+    Args:
+        onderwerp: Waarover gerapporteerd wordt (project, lectoraat of vraag).
+    """
+    return f"""\
+Rapporteer de gevonden funding calls over: {onderwerp}
+
+Vorm (aanhouden, ook als er weinig is):
+
+- Een **tabel per call**, geen samenvatting. Kolommen: titel · fondsverstrekker · status ·
+  deadline (en `deadline_eoi` als die er is) · budget · rol voor HAS · één regel waarom het
+  past.
+- **Altijd de URL erbij**, uit het `url`-veld van de call zelf. Geef een mens
+  `tracked_url` (de klik wordt meegeteld), een machine die de pagina leest `url`.
+- Drie blokken: **(A)** past én is nog te grijpen (open/upcoming, deadline in de toekomst);
+  **(B)** inhoudelijk exact maar gesloten — als kader en voor de herhalingsronde;
+  **(C)** wat je bewust niet meenam en waarom (brede calls, verkeerd domein).
+- Kwantificeer: hoeveel unieke calls de sweep opleverde en hoeveel daarvan inhoudelijk raak
+  zijn.
+- Noem wat je **niet** kon verifiëren — statussemantiek (`intake_closed` betekent niet dat de
+  deadline voorbij is), lege budgetten, een pagina die niet te lezen was. Dat hoort erbij,
+  niet weggelaten.
+- De HAS-rol is een classificatie uit de extractie, geen recht: toets hem op de callpagina
+  en citeer de regel waarop je je baseert.
+
+Antwoord in de taal van de vraag."""
 
 
 def main() -> None:
