@@ -31,6 +31,7 @@ TIMEOUT_SECONDS = 60
 EXPECTED_TOOLS = {
     "search_calls",
     "get_call",
+    "read_call_page",
     "calls_for_research_group",
     "list_sources",
     "list_research_groups",
@@ -177,7 +178,7 @@ def main() -> int:
 
         listing = client.request("tools/list")
         tools = {tool["name"] for tool in (listing.get("result") or {}).get("tools", [])}
-        check(tools == EXPECTED_TOOLS, "tools/list returns exactly the six documented tools", f"got {sorted(tools)}")
+        check(tools == EXPECTED_TOOLS, "tools/list returns exactly the seven documented tools", f"got {sorted(tools)}")
         print(f"tools: {sorted(tools)}")
 
         sample = next(

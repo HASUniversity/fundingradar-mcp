@@ -23,6 +23,7 @@ from pydantic import Field
 from . import __version__
 from .client import ApiError, FundingRadarApi
 from .config import ConfigError, load_settings
+from .page import DEFAULT_MAX_CHARS, PageUnavailable
 from .service import CANONICAL_FOCUS_AREAS, SORTS, STATS_GROUPS, FundingRadarService
 
 SERVER_NAME = "fundingradar"
@@ -90,7 +91,7 @@ def _anticipated_failure() -> Iterator[None]:
     """
     try:
         yield
-    except (ValueError, ConfigError, ApiError) as error:
+    except (ValueError, ConfigError, ApiError, PageUnavailable) as error:
         raise ToolError(str(error)) from None
 
 
@@ -148,6 +149,10 @@ def search_calls(
 
     By default only calls that can still be acted on: not a closed round, and not past the
     deadline. Pass include_closed=True for the archive, or name an explicit status.
+
+    Every call carries `url` (the funder's own page), `tracked_url` (the same destination through
+    the application's click counter — hand this one to people, so the click shows up in Click
+    Analytics) and `apply_url` where the funder has a separate application page.
     """
     with _anticipated_failure():
         return _service().search_calls(
@@ -175,9 +180,39 @@ def get_call(
         Field(description="The call's public UUID, or its numeric id (both are accepted)."),
     ],
 ) -> dict[str, Any]:
-    """Full detail of one funding call, plus its matched research groups, themes and tags."""
+    """Full detail of one funding call, plus its matched research groups, themes and tags.
+
+    The call carries `url` (the funder's own page), `tracked_url` (the same destination via the
+    application's click counter, so a click shows up in Click Analytics) and `apply_url`.
+    """
     with _anticipated_failure():
         return _service().get_call(public_id)
+
+
+@server.tool(
+    name="read_call_page",
+    title="Read a call's own page",
+    annotations=_READ_ONLY,
+)
+def read_call_page(
+    public_id: Annotated[
+        str,
+        Field(description="The call's public UUID, or its numeric id (both are accepted)."),
+    ],
+    max_chars: Annotated[
+        int,
+        Field(description="How much of the page text to return (1000-20000).", ge=1000, le=20000),
+    ] = DEFAULT_MAX_CHARS,
+) -> dict[str, Any]:
+    """Fetch the funder's page for one call and return its text.
+
+    Use this when the answer depends on the *current* status — "is this call still open, did the
+    deadline move?" — because the stored status and deadline come from a daily pipeline and can
+    lag behind. If the page cannot be read (it blocks scripts, or needs JavaScript), the tool
+    says so; report that instead of guessing a status.
+    """
+    with _anticipated_failure():
+        return _service().read_call_page(public_id=public_id, max_chars=max_chars)
 
 
 @server.tool(
@@ -200,6 +235,8 @@ def calls_for_research_group(
     """Calls the pipeline matched to one research group, with the match reason and whether the group was notified.
 
     By default only matches that can still be acted on: not closed, and the deadline not passed.
+    Each match carries `url` and `tracked_url`; `read_call_page` opens the funder's page when the
+    current status matters.
     """
     with _anticipated_failure():
         return _service().calls_for_research_group(

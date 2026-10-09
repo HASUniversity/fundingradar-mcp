@@ -9,7 +9,10 @@ Run from the repository root:  python -m unittest discover -s tests -t .
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
+from fundingradar_mcp.client import ApiError
+from fundingradar_mcp.page import DEFAULT_MAX_CHARS
 from fundingradar_mcp.service import FundingRadarService
 
 
@@ -178,6 +181,60 @@ class FundingStatsTests(unittest.TestCase):
             FundingRadarService(api).funding_stats(group_by="colour")
         self.assertIn("research_group", str(caught.exception))
         self.assertEqual(api.requests, [])
+
+
+class ReadCallPageTests(unittest.TestCase):
+    """read_call_page: the call's URL goes in, the page's text comes out."""
+
+    def _service(self, call: dict) -> tuple[FundingRadarService, FakeApi]:
+        api = FakeApi({"/api/v1/call.php": {"data": {"call": call}, "meta": {}}})
+        return FundingRadarService(api), api
+
+    def test_reads_the_calls_own_page(self) -> None:
+        service, api = self._service({
+            "public_id": "abc", "title": "Bodem en water", "status": "open",
+            "deadline": "2027-03-31", "url": "https://example.org/bodem",
+            "tracked_url": "https://dilab.has.nl/showcases/fundingradar/api/click.php?call_id=1",
+        })
+
+        with mock.patch("fundingradar_mcp.service.fetch_page_text") as fetch:
+            fetch.return_value = {"url": "https://example.org/bodem", "text": "Nog open tot 31 maart 2027"}
+            result = service.read_call_page(public_id="abc")
+
+        fetch.assert_called_once_with("https://example.org/bodem", max_chars=DEFAULT_MAX_CHARS)
+        self.assertEqual(api.requests[0], ("/api/v1/call.php", {"id": "abc"}))
+        self.assertEqual(result["call"]["title"], "Bodem en water")
+        self.assertEqual(result["call"]["url"], "https://example.org/bodem")
+        self.assertIn("Nog open", result["page"]["text"])
+        self.assertIn("daily pipeline", result["note"])
+
+    def test_falls_back_to_the_application_page(self) -> None:
+        service, _ = self._service({"public_id": "abc", "url": None, "apply_url": "https://example.org/apply"})
+
+        with mock.patch("fundingradar_mcp.service.fetch_page_text") as fetch:
+            fetch.return_value = {"text": "Aanvragen"}
+            service.read_call_page(public_id="abc")
+
+        fetch.assert_called_once_with("https://example.org/apply", max_chars=DEFAULT_MAX_CHARS)
+
+    def test_passes_the_requested_length_through(self) -> None:
+        service, _ = self._service({"public_id": "abc", "url": "https://example.org/x"})
+
+        with mock.patch("fundingradar_mcp.service.fetch_page_text") as fetch:
+            fetch.return_value = {"text": "kort"}
+            service.read_call_page(public_id="abc", max_chars=2000)
+
+        fetch.assert_called_once_with("https://example.org/x", max_chars=2000)
+
+    def test_a_call_without_any_url_is_refused_clearly(self) -> None:
+        service, _ = self._service({"public_id": "abc", "url": None, "apply_url": None})
+
+        with mock.patch("fundingradar_mcp.service.fetch_page_text") as fetch:
+            with self.assertRaises(ApiError) as caught:
+                service.read_call_page(public_id="abc")
+
+        self.assertIn("no page to read", str(caught.exception))
+        fetch.assert_not_called()
 
 
 if __name__ == "__main__":

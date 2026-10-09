@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from .client import FundingRadarApi, ApiError
+from .page import DEFAULT_MAX_CHARS, fetch_page_text
 
 #: The only focus areas that are reliably present in the data; the API rejects others.
 CANONICAL_FOCUS_AREAS = ("onderzoek", "onderwijs", "zakelijke_dienstverlening")
@@ -98,6 +99,33 @@ class FundingRadarService:
             "matched_research_groups": data.get("research_groups", []),
             "matched_research_themes": data.get("themes", []),
             "tags": data.get("tags", []),
+        }
+
+    def read_call_page(self, *, public_id: Any, max_chars: int = DEFAULT_MAX_CHARS) -> dict[str, Any]:
+        """The call's own page, as text, so an agent can judge the current status.
+
+        The stored status and deadline come from the daily pipeline; the funder's page is the
+        source of truth for "is this still open". A page that cannot be read raises
+        PageUnavailable with a message the agent can pass on, rather than pretending.
+        """
+        detail = self.get_call(public_id)
+        call = detail.get("call", {}) or {}
+        url = call.get("url") or call.get("apply_url") or call.get("call_document_url")
+        if not url:
+            raise ApiError(
+                "this call has no page to read: url, apply_url and call_document_url are all empty"
+            )
+        page = fetch_page_text(str(url), max_chars=max_chars)
+        return {
+            "call": {key: call.get(key) for key in (
+                "public_id", "title", "source", "status", "deadline", "url", "apply_url", "tracked_url",
+            )},
+            "page": page,
+            "note": (
+                "The stored status and deadline come from the daily pipeline and can lag behind "
+                "the funder's page. Judge the current status from the page text; if the page could "
+                "not be read, say that instead of guessing."
+            ),
         }
 
     def calls_for_research_group(

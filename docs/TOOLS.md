@@ -1,6 +1,6 @@
 # Tools
 
-Zes read-only tools plus één resource. Ze praten met de FundingRadar-API (`api/v1`), dus de
+Zeven read-only tools plus één resource. Ze praten met de FundingRadar-API (`api/v1`), dus de
 uitvoer is precies wat de API teruggeeft: dezelfde velden als de webapplicatie gebruikt. De
 volledige veldbeschrijving staat in de OpenAPI-spec van de installatie
 (`/api/v1/openapi.json`, interactief op `/api/v1/docs.php`).
@@ -31,6 +31,11 @@ ruwe telling in de database. Drie dingen staan standaard uit:
 
 Eén definitie geldt overal: `CallRepository::ACTIONABLE_SQL` in de FundingRadar-repo, dezelfde
 regel die de lectoraattellingen (`matched_open_calls`) gebruiken.
+
+**URL's zitten altijd in de uitvoer**, zodat een agent nooit een call noemt zonder hem te kunnen
+openen: `url` (de pagina van de fondsverstrekker), `apply_url`, `call_document_url` en
+`tracked_url` — dezelfde bestemming via de klikteller van de applicatie. Zie *URL's en kliks*
+onderaan voor het verschil en wanneer je welke doorgeeft.
 
 ---
 
@@ -74,6 +79,41 @@ cofinancieringsvelden, `eligibility_*`, `themes`, `disciplines`, `focus_areas`, 
 
 Onbekende of misvormde id's geven een fout (`HTTP 404` respectievelijk `HTTP 422`), geen lege
 uitvoer.
+
+Elke call bevat de URL's: `url` (de pagina van de fondsverstrekker zelf), `apply_url` (indien apart
+aanvraagformulier), `call_document_url` en `tracked_url` — dezelfde bestemming via de klikteller van
+de applicatie, zodat een klik in **Click Analytics** terechtkomt (zie *URL's en kliks* onderaan).
+
+---
+
+## `read_call_page`
+
+Haalt de pagina van de fondsverstrekker op en geeft de **tekst** terug, zodat het model de
+actuele status kan beoordelen ("is deze ronde nog open, is de deadline verschoven?"). De status en
+deadline in de database komen uit de dagelijkse pijplijn en kunnen achterlopen; deze tool leest de
+bron zelf.
+
+| Parameter | Type | Default | Betekenis |
+|---|---|---|---|
+| `public_id` | string | *verplicht* | Publieke UUID of numeriek id van de call |
+| `max_chars` | int | 6000 | Hoeveel tekst je terugkrijgt (1000–20000) |
+
+Uitvoer: `call` (`public_id`, `title`, `source`, `status`, `deadline`, `url`, `apply_url`,
+`tracked_url`), `page` (`url`, `final_url`, `http_status`, `content_type`, `bytes`, `title`, `text`,
+`truncated`) en een `note` die zegt dat je de status uit de paginatekst moet halen.
+
+Lukt het lezen niet, dan zegt de tool dat — met de reden en de URL. Dat is expres: een agent hoort
+"Ik kon de pagina niet lezen" te melden in plaats van een status te verzinnen. Drie gevallen:
+
+| Geval | Wat je terugkrijgt |
+|---|---|
+| De site weigert scripts (401/403/405/406/429) | *"the site refused the request (HTTP 403) … Open <url> in a browser"* |
+| De pagina bouwt zich met JavaScript (geen leesbare tekst) | *"returned no readable text … Open it in a browser"* |
+| Geen HTML (PDF), time-out of onbereikbare host | De reden, met de URL of de tijdlimiet |
+
+De fetcher is bewust bescheiden: één GET, geen cookies, geen JavaScript, een herkenbare
+User-Agent, maximaal 400 kB en standaard 20 seconden. Pagina's achter een browser-muur vallen dus
+af — dat is de grens van deze tool, niet een fout die je moet omzeilen.
 
 ---
 
@@ -123,6 +163,29 @@ Onbekende `group_by` geeft een fout met de toegestane lijst. Twee kanttekeningen
 `research_group` telt een call die aan meerdere lectoraten hangt net zo vaak mee (de buckets zijn
 geen optelling van unieke calls), en `focus_area` is afgekapt op 200 buckets omdat die kolom ook
 vrije tekst bevat. `counted_calls` is het aantal getelde rijen, niet het aantal unieke calls.
+
+---
+
+## URL's en kliks
+
+Elke call en elke match komt met de URL's erbij:
+
+| Veld | Wat het is | Waarvoor |
+|---|---|---|
+| `url` | De pagina van de fondsverstrekker | Lezen (`read_call_page`) of doorgeven aan een mens |
+| `apply_url` | Het aanvraagformulier, als dat apart staat | Aanvragen |
+| `call_document_url` | Het document of de flyer bij de call | Details |
+| `tracked_url` | Dezelfde bestemming via `/api/click.php` van de applicatie | **Doorgeven aan mensen** |
+
+`tracked_url` telt de klik en stuurt daarna door naar `url`. Zulke kliks komen in
+`email_click_log` en verschijnen in de **Click Analytics** van de beheerpagina, met
+`utm_source=mcp`, `utm_medium=agent`, `utm_content=call_link` (of `apply_link`) en het `user_id`
+van het account waarvan het API-token is gebruikt. Zo zie je naast mail- en dashboardkliks ook
+wat er via agents wordt doorgegeven — en door wie. Bij een call met een aparte aanvraagpagina
+hoort `tracked_apply_url` bij `apply_url`.
+
+Geef bij een mens dus `tracked_url` en bij een machine die de pagina gaat lezen `url`: de
+klikteller is een omweg, geen inhoud.
 
 ---
 
