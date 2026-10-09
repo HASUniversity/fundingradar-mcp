@@ -21,9 +21,10 @@ DEFAULT_TIMEOUT = 30.0
 DEFAULT_BASE_URL = "https://dilab.has.nl/showcases/fundingradar"
 
 #: Shape of a personal token as the settings page issues it. Two prefixes are accepted:
-#: the current one, and `fr_` for tokens minted before it changed. The prefix moved because
-#: the production host answers its own 404 for a `fr_` value in a token header on
-#: api/v1/*.php (measured 2026-10-09; see docs/OPERATIONS.md).
+#: the current one, and `fr_` for tokens minted before it changed. The prefix moved during the
+#: build, when the host appeared to reject a `fr_` value in a token header - that turned out to
+#: be a fatal error in the application, not a host rule (see docs/api-v1.md in the app repo).
+#: `fr_` works fine, so both stay accepted.
 TOKEN_PREFIXES = ("fdr_", "fr_")
 
 

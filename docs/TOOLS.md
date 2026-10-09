@@ -44,7 +44,7 @@ onderaan voor het verschil en wanneer je welke doorgeeft.
 | Parameter | Type | Default | Betekenis |
 |---|---|---|---|
 | `query` | string | — | **Het onderwerp, geen vraag.** De woorden worden samen met hun NL/EN-tegenhanger en de URL's van de calls gezocht (zie `expand`) |
-| `expand` | bool | `true` | Zoek ook de synoniemen (bodem ↔ soil, glastuinbouw ↔ greenhouse horticulture) en laat de call-URL als treffer tellen. `false` stuurt `literal=1` naar de API — die opt-out, want de host blokkeert een parameter met de naam `expand` naast `q` |
+| `expand` | bool | `true` | Zoek ook de synoniemen (bodem ↔ soil, glastuinbouw ↔ greenhouse horticulture) en laat de call-URL als treffer tellen. `false` stuurt `literal=1` naar de API — die opt-out, want uitbreiden is de default |
 | `source` | string | — | Bron op short name óf volledige naam, bv. `ZonMw`, `RVO`, `EU Portal` (onbekend → fout) |
 | `research_group` | string | — | Lectoraat-slug of naam; alleen calls die de pijplijn daaraan matchte |
 | `focus_area` | string | — | Eén van `onderzoek`, `onderwijs`, `zakelijke_dienstverlening`; andere waarden worden geweigerd |
@@ -72,9 +72,9 @@ lees dat en stuur bij als je onderwerp er niet in zit. Verder dan vier woorden e
 per woord gaat het niet, en stopwoorden of te algemene woorden (health, management, kwaliteit)
 worden overgeslagen.
 
-De zoekopdracht gaat als **POST-body** naar de API: de host blokkeert een query-string die de
-uitgebreide zoekopdracht zou uitvoeren, en een body is geen query-string. Filteren zonder
-zoekterm blijft een gewone GET.
+De zoekopdracht gaat als **POST-body** naar de API: dezelfde velden, maar buiten de URL — dus
+niet in access logs, en niet beperkt door URL-lengte. Een gewone GET met `query=…` werkt ook;
+filteren zonder zoekterm is altijd een GET.
 
 Sweep liever meerdere assen dan één term: onderwerp (bodem, water, ai), methode (monitoring,
 sensor, remote sensing), sector (glastuinbouw, veehouderij, voeding, verpakking). En combineer

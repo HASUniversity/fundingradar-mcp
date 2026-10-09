@@ -150,13 +150,13 @@ class GetTests(unittest.TestCase):
         self.assertIn("no such call", str(caught.exception))
         self.assertEqual(opener.call_count, 1)  # the application answered: no retry
 
-    def test_every_transport_rejected_names_the_host_as_the_cause(self) -> None:
+    def test_every_transport_rejected_says_the_request_never_arrived(self) -> None:
         html = "<html><title>404</title></html>"
         with mock.patch("urllib.request.urlopen", side_effect=[_http_error(404, html)] * 3):
             with self.assertRaises(ApiError) as caught:
                 self.api.get("/api/v1/me.php")
         message = str(caught.exception)
-        self.assertIn("host", message)
+        self.assertIn("no transport reached", message)
         self.assertIn("bearer", message)
 
     def test_the_transport_that_worked_is_tried_first_next_time(self) -> None:

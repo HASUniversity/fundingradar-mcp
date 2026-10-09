@@ -82,10 +82,11 @@ class FundingRadarApi:
     def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         """POST arguments as a JSON body and return the parsed body.
 
-        The search goes this way: the host in front of the API answers its own 404 on a request
-        whose query string would run the expanded search (any parameter name, any value, while the
-        same search with `literal=1` passes). A body is not part of the query string, so it gets
-        through. The endpoint is read-only, so a body changes nothing about what the API can do.
+        The API takes the same fields as query-string arguments and as a body. The search goes
+        this way so the terms stay out of the URL (and out of access logs) and a long query is
+        not limited by URL length. An earlier note here blamed the host for 404s on a
+        query-string search; that was a fatal error in the application (a missing import), not
+        a host rule - see docs/api-v1.md in the app repository.
         """
         clean = {key: value for key, value in payload.items() if value is not None and value != ""}
         return self._send(f"{self._base}/{path.lstrip('/')}", clean)
@@ -105,10 +106,10 @@ class FundingRadarApi:
             return parsed
 
         raise ApiError(
-            "the host in front of the FundingRadar API refused every request "
+            "no transport reached the FundingRadar API "
             f"({len(host_rejections)} transports tried: {'; '.join(host_rejections)}). The "
             "request never reached the application, so the token was not the problem — "
-            "report this with docs/OPERATIONS.md"
+            "check docs/OPERATIONS.md"
         )
 
     def _transport_order(self) -> list[str]:
@@ -177,7 +178,13 @@ class FundingRadarApi:
 
 
 class _HostRejection(RuntimeError):
-    """The host in front of the application refused the request before PHP ran."""
+    """A non-JSON rejection from whatever sits in front of the application.
+
+    Kept as a safety net: it was built when the host appeared to answer its own 404 on certain
+    headers, a behaviour that did not reproduce on 2026-10-09 (those 404s came from a fatal
+    error in the app). Trying the next transport costs one request and still protects against
+    a host that really does filter.
+    """
 
 
 def _read(error: urllib.error.HTTPError) -> str:
@@ -198,7 +205,6 @@ def _short(raw: str) -> str:
     """A one-line summary of a non-JSON body, for the error message."""
     text = " ".join(raw.split())
     return text[:80]
-
 
 def _message_of(status: int, raw: str, reason: Any) -> str:
     """The API's own error message, with a hint about what the status means."""

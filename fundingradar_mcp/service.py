@@ -103,8 +103,8 @@ class FundingRadarService:
             "limit": limit,
             "offset": offset,
         }
-        # A search goes in a POST body: the host in front of the API answers its own 404 on a
-        # request whose query string would run the expanded search, and a body is not part of it.
+        # A search goes in a POST body: the same fields out of the URL, so the terms stay out of
+        # access logs and a long query is not limited by URL length. A GET works too.
         if query:
             body = self._api.post_json("/api/v1/calls.php", params)
         else:
