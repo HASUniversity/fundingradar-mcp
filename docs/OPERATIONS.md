@@ -91,6 +91,10 @@ python tests/print_samples.py
 | Token-unitchecks (`tests/test_api_tokens.php`) | 52 checks op formaat, hashing, transportresolutie, Basic-parsing en headerparsing |
 | Eind-tot-eind tegen **productie** (2026-10-09) | handshake + `tools/list` + vier toolaanroepen met echte data: `funding_stats` (4.452 calls, per bron), `list_sources`, `search_calls("bodem")` (14 treffers) en `calls_for_research_group("levende-bodem")` (444 matches, 60 open). Gedraaid met een tijdelijk token op een wegwerpaccount, daarna verwijderd |
 
+Opnieuw uitvoeren: `python tests/prod_smoke_test.py` met `DB_*` van de doelinstallatie. Dat script
+**schrijft** in die database (één wegwerpaccount met één token, daarna beide verwijderd), dus richt
+het alleen op een omgeving waar dat de bedoeling is.
+
 ## 5. Problemen oplossen
 
 | Symptoom | Oorzaak en oplossing |
