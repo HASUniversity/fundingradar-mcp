@@ -12,8 +12,11 @@ agent can say "I could not read this page" instead of inventing a status.
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import urllib.error
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from typing import Any
@@ -26,6 +29,20 @@ DEFAULT_TIMEOUT = 20.0
 DEFAULT_MAX_BYTES = 400_000
 DEFAULT_MAX_CHARS = 6000
 
+#: Redirects are followed by hand (see _open_public) so every hop can be checked.
+MAX_REDIRECTS = 5
+_REDIRECT_CODES = frozenset({301, 302, 303, 307, 308})
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Leave redirects to _open_public: urllib must not follow a hop we have not checked."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001, ANN201
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 #: Elements whose text is markup machinery or navigation, not the call's content.
 _SKIP_ELEMENTS = frozenset({
     "script", "style", "noscript", "svg", "head", "nav", "footer", "form", "iframe", "template",
@@ -35,10 +52,37 @@ _BLOCK_ELEMENTS = frozenset({
     "p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article",
     "table", "thead", "tbody", "ul", "ol", "blockquote", "dt", "dd", "figure", "hr",
 })
+#: Containers that hold chrome rather than content. Most sites mark this with a class or id
+#: instead of a <nav> element, and the menu text would otherwise eat the reader's budget.
+_CHROME_PATTERN = re.compile(
+    r"(^|[-_\s])(nav|navbar|navigation|menu|breadcrumb|skip|header|footer|sidebar|social|"
+    r"cookie|consent|banner|search|language|lang)([-_\s]|$)",
+    re.IGNORECASE,
+)
 
 
 class PageUnavailable(RuntimeError):
     """The page could not be read; the message says what to tell the user."""
+
+
+#: Elements that never have an end tag, so they cannot open a subtree to skip.
+_VOID_ELEMENTS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
+    "track", "wbr",
+})
+
+
+def _is_chrome(tag: str, attributes: dict[str, str]) -> bool:
+    """True for a container that holds site chrome rather than the page's content."""
+    if tag not in ("div", "section", "ul", "ol", "span", "aside", "form", "table"):
+        return False
+    haystack = " ".join((
+        attributes.get("class", ""),
+        attributes.get("id", ""),
+        attributes.get("role", ""),
+        attributes.get("aria-label", ""),
+    ))
+    return bool(_CHROME_PATTERN.search(haystack))
 
 
 class _TextExtractor(HTMLParser):
@@ -52,18 +96,30 @@ class _TextExtractor(HTMLParser):
         self.title = ""
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in _SKIP_ELEMENTS:
-            self._skip_depth += 1
-        elif tag == "title":
+        if tag == "title":
             self._in_title = True
+            return
+        if self._skip_depth > 0:
+            if tag not in _VOID_ELEMENTS:
+                self._skip_depth += 1
+            return
+        attributes = {name.lower(): (value or "") for name, value in attrs}
+        if tag in _SKIP_ELEMENTS or _is_chrome(tag, attributes):
+            self._skip_depth = 1
         elif tag in _BLOCK_ELEMENTS:
             self._parts.append("\n")
 
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """Self-closing tag: it has no end tag, so it can never start a skipped subtree."""
+        if self._skip_depth == 0 and tag in _BLOCK_ELEMENTS:
+            self._parts.append("\n")
+
     def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP_ELEMENTS and self._skip_depth > 0:
-            self._skip_depth -= 1
-        elif tag == "title":
+        if tag == "title":
             self._in_title = False
+            return
+        if self._skip_depth > 0:
+            self._skip_depth -= 1
         elif tag in _BLOCK_ELEMENTS:
             self._parts.append("\n")
 
@@ -92,6 +148,71 @@ def extract_text(html: str) -> tuple[str, str]:
     return " ".join(parser.title.split()), parser.text()
 
 
+def _assert_public_host(url: str) -> None:
+    """Refuse to fetch loopback, private and link-local addresses.
+
+    The URL comes from a database record: `call_document_url` is extracted from a funder's page
+    by a language model, so it is not something we control. Without this check the tool would be
+    a way to reach internal services from wherever the server runs (SSRF).
+    """
+    host = urllib.parse.urlsplit(url).hostname or ""
+    if not host:
+        raise PageUnavailable(f"not an http(s) URL: {url}")
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as error:
+        raise PageUnavailable(f"could not resolve {host}: {error}") from None
+    for info in infos:
+        try:
+            address = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        if (address.is_private or address.is_loopback or address.is_link_local
+                or address.is_reserved or address.is_multicast or address.is_unspecified):
+            raise PageUnavailable(
+                f"{host} resolves to a non-public address ({address}); refusing to fetch it"
+            )
+
+
+def _request(url: str) -> urllib.request.Request:
+    return urllib.request.Request(url, headers={
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+        "Accept-Language": "nl,en;q=0.8",
+    })
+
+
+def _open_public(url: str, *, timeout: float):
+    """GET *url*, following redirects one hop at a time, checking every hop's host.
+
+    Redirects are followed by hand because a public URL may redirect to an internal one; letting
+    urllib follow them would skip the check.
+    """
+    current = url
+    for _ in range(MAX_REDIRECTS + 1):
+        _assert_public_host(current)
+        try:
+            return _OPENER.open(_request(current), timeout=timeout)
+        except urllib.error.HTTPError as error:
+            if error.code in _REDIRECT_CODES:
+                target = urllib.parse.urljoin(current, error.headers.get("Location") or "")
+                if not target:
+                    raise PageUnavailable(f"{current} redirected without a target") from None
+                current = target
+                continue
+            if error.code in (401, 403, 405, 406, 429):
+                raise PageUnavailable(
+                    f"the site refused the request (HTTP {error.code}); it likely blocks "
+                    f"automated visitors. Open {current} in a browser for the current status"
+                ) from None
+            raise PageUnavailable(f"the site answered HTTP {error.code} for {current}") from None
+        except urllib.error.URLError as error:
+            raise PageUnavailable(f"could not reach {current}: {error.reason}") from None
+        except TimeoutError:
+            raise PageUnavailable(f"{current} did not answer within {timeout:.0f}s") from None
+    raise PageUnavailable(f"{url} redirected more than {MAX_REDIRECTS} times")
+
+
 def fetch_page_text(
     url: str,
     *,
@@ -109,28 +230,12 @@ def fetch_page_text(
     if not re.match(r"^https?://", url, re.IGNORECASE):
         raise PageUnavailable(f"not an http(s) URL: {url}")
 
-    request = urllib.request.Request(url, headers={
-        "User-Agent": USER_AGENT,
-        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
-        "Accept-Language": "nl,en;q=0.8",
-    })
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            status = response.status
-            final_url = response.geturl()
-            header = response.headers.get("Content-Type") or ""
-            raw = response.read(max_bytes + 1)
-    except urllib.error.HTTPError as error:
-        if error.code in (401, 403, 405, 406, 429):
-            raise PageUnavailable(
-                f"the site refused the request (HTTP {error.code}); it likely blocks automated "
-                f"visitors. Open {url} in a browser for the current status"
-            ) from None
-        raise PageUnavailable(f"the site answered HTTP {error.code} for {url}") from None
-    except urllib.error.URLError as error:
-        raise PageUnavailable(f"could not reach {url}: {error.reason}") from None
-    except TimeoutError:
-        raise PageUnavailable(f"{url} did not answer within {timeout:.0f}s") from None
+    response = _open_public(url, timeout=timeout)
+    with response:
+        status = response.status
+        final_url = response.geturl()
+        header = response.headers.get("Content-Type") or ""
+        raw = response.read(max_bytes + 1)
 
     truncated_bytes = len(raw) > max_bytes
     raw = raw[:max_bytes]

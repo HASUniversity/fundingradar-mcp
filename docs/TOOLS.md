@@ -115,6 +115,11 @@ De fetcher is bewust bescheiden: één GET, geen cookies, geen JavaScript, een h
 User-Agent, maximaal 400 kB en standaard 20 seconden. Pagina's achter een browser-muur vallen dus
 af — dat is de grens van deze tool, niet een fout die je moet omzeilen.
 
+Interne adressen worden geweigerd (loopback, private en link-local, dus ook
+`169.254.169.254`), en redirects worden hop voor hop gevolgd met dezelfde controle. Reden: de URL
+komt uit een databaserecord en `call_document_url` wordt door het model uit paginacontent gehaald,
+dus dat is geen invoer die wij bepalen — zonder die grens zou deze tool een weg naar binnen zijn.
+
 ---
 
 ## `calls_for_research_group`
