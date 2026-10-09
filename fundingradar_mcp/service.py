@@ -78,11 +78,11 @@ class FundingRadarService:
                 "sort_by": sort_by,
                 "include_closed": include_closed,
                 "include_ineligible": include_ineligible,
-                # The server turns the question into terms (Dutch/English equivalents) and lets
-                # the call's own URLs count as a hit; without it a whole paragraph finds nothing.
-                # The API parameter is expand_terms, not expand: the host in front of the API
-                # answers its own 404 on `q=…&expand=1` (see docs/api-v1.md there).
-                "expand_terms": expand if query else None,
+                # The API expands the question by default (Dutch/English equivalents, and the
+                # call's own URLs count as a hit); without it a whole paragraph finds nothing.
+                # The flag is an opt-out because the host in front of the API answers its own
+                # 404 on `q=…&expand=1` — see docs/api-v1.md in the app repository.
+                "literal": True if (query and not expand) else None,
                 "limit": limit,
                 "offset": offset,
             },

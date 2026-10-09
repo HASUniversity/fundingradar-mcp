@@ -185,7 +185,7 @@ class FundingStatsTests(unittest.TestCase):
 
 
 class SearchExpansionTests(unittest.TestCase):
-    """search_calls asks the API to expand the question, and shows what it searched."""
+    """search_calls relies on the API's default expansion, and can ask for an exact search."""
 
     def _api(self):
         return FakeApi({
@@ -195,29 +195,29 @@ class SearchExpansionTests(unittest.TestCase):
             }
         })
 
-    def test_expansion_is_on_by_default_and_reported(self) -> None:
+    def test_expansion_is_the_default_and_reported(self) -> None:
         api = self._api()
         result = FundingRadarService(api).search_calls(query="bodemkwaliteit en water")
 
         _, params = api.requests[0]
-        self.assertIs(params["expand_terms"], True)
+        self.assertIsNone(params["literal"], "the server expands unless asked otherwise")
         self.assertEqual(result["searched_terms"], ["bodemkwaliteit", "soil"])
         self.assertEqual(result["total_matched"], 210)
 
-    def test_expansion_can_be_turned_off(self) -> None:
+    def test_expansion_can_be_turned_off_with_an_opt_out(self) -> None:
         api = self._api()
         FundingRadarService(api).search_calls(query="bodem", expand=False)
         _, params = api.requests[0]
-        self.assertIs(params["expand_terms"], False)
+        self.assertIs(params["literal"], True)
 
     def test_no_query_means_nothing_to_expand(self) -> None:
         api = self._api()
         FundingRadarService(api).search_calls(source="RVO")
         _, params = api.requests[0]
         self.assertIsNone(params["q"])
-        self.assertIsNone(params["expand_terms"], "expand is only sent together with a query")
+        self.assertIsNone(params["literal"], "without a query there is nothing to search")
         # The client drops unset values, so neither parameter reaches the API.
-        self.assertNotIn("expand_terms=", Client._encode(params))
+        self.assertNotIn("literal=", Client._encode(params))
         self.assertNotIn("q=", Client._encode(params))
 
 
