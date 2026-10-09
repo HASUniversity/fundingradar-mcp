@@ -44,7 +44,7 @@ onderaan voor het verschil en wanneer je welke doorgeeft.
 | Parameter | Type | Default | Betekenis |
 |---|---|---|---|
 | `query` | string | — | **Het onderwerp, geen vraag.** De woorden worden samen met hun NL/EN-tegenhanger en de URL's van de calls gezocht (zie `expand`) |
-| `expand` | bool | `true` | Zoek ook de synoniemen (bodem ↔ soil, glastuinbouw ↔ greenhouse horticulture) en laat de call-URL als treffer tellen. `false` = letterlijk zoeken |
+| `expand` | bool | `true` | Zoek ook de synoniemen (bodem ↔ soil, glastuinbouw ↔ greenhouse horticulture) en laat de call-URL als treffer tellen. `false` = letterlijk zoeken. Gaat naar de API als `expand_terms` — die naam, want de host blokkeert `q=…&expand=1` |
 | `source` | string | — | Bron op short name óf volledige naam, bv. `ZonMw`, `RVO`, `EU Portal` (onbekend → fout) |
 | `research_group` | string | — | Lectoraat-slug of naam; alleen calls die de pijplijn daaraan matchte |
 | `focus_area` | string | — | Eén van `onderzoek`, `onderwijs`, `zakelijke_dienstverlening`; andere waarden worden geweigerd |

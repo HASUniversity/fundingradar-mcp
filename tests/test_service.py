@@ -200,7 +200,7 @@ class SearchExpansionTests(unittest.TestCase):
         result = FundingRadarService(api).search_calls(query="bodemkwaliteit en water")
 
         _, params = api.requests[0]
-        self.assertIs(params["expand"], True)
+        self.assertIs(params["expand_terms"], True)
         self.assertEqual(result["searched_terms"], ["bodemkwaliteit", "soil"])
         self.assertEqual(result["total_matched"], 210)
 
@@ -208,16 +208,16 @@ class SearchExpansionTests(unittest.TestCase):
         api = self._api()
         FundingRadarService(api).search_calls(query="bodem", expand=False)
         _, params = api.requests[0]
-        self.assertIs(params["expand"], False)
+        self.assertIs(params["expand_terms"], False)
 
     def test_no_query_means_nothing_to_expand(self) -> None:
         api = self._api()
         FundingRadarService(api).search_calls(source="RVO")
         _, params = api.requests[0]
         self.assertIsNone(params["q"])
-        self.assertIsNone(params["expand"], "expand is only sent together with a query")
+        self.assertIsNone(params["expand_terms"], "expand is only sent together with a query")
         # The client drops unset values, so neither parameter reaches the API.
-        self.assertNotIn("expand=", Client._encode(params))
+        self.assertNotIn("expand_terms=", Client._encode(params))
         self.assertNotIn("q=", Client._encode(params))
 
 

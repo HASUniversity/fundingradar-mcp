@@ -80,7 +80,9 @@ class FundingRadarService:
                 "include_ineligible": include_ineligible,
                 # The server turns the question into terms (Dutch/English equivalents) and lets
                 # the call's own URLs count as a hit; without it a whole paragraph finds nothing.
-                "expand": expand if query else None,
+                # The API parameter is expand_terms, not expand: the host in front of the API
+                # answers its own 404 on `q=…&expand=1` (see docs/api-v1.md there).
+                "expand_terms": expand if query else None,
                 "limit": limit,
                 "offset": offset,
             },
