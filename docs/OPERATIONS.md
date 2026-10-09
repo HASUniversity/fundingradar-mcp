@@ -52,9 +52,11 @@ een database-rol verder nog mag.
    toegestane waarden op.
 
 Het token reist in **beide** headervormen: deze server stuurt `Authorization: Bearer` én
-`X-API-Token`. Dat is geen sier: nginx vóór de app op dilab.has.nl antwoordt met zijn eigen 404
-op elke request met een `Authorization`-header, nog vóór PHP. Server en client zijn daar op
-gebouwd, dus een collega merkt er niets van.
+`X-API-Token`, zodat een proxy of front-end die één van de twee aanpast geen blokkade wordt.
+
+Wat wel een harde grens is: op de productiehost komt niets boven 42 tekens aan — nginx geeft
+zijn eigen 404 op een tokenheader van 43 tekens of meer naar `api/v1/*.php`. Daarom zijn de
+tokens 31 tekens (168 bits); zie `docs/api-v1.md` in de FundingRadar-repo voor de meting.
 
 Wat het **niet** doet: autorisatie per lectoraat. Elk token leest dezelfde data als de
 webapplicatie; er is nog geen scoping op `user_research_group`. Dat is de logische volgende stap
@@ -93,7 +95,7 @@ python tests/print_samples.py
 |---|---|
 | `missing required environment variable FUNDINGRADAR_API_TOKEN` | Het token staat niet in de clientconfig. Let op: Hermes geeft stdio-servers alleen een veilige basisomgeving; alles wat de server nodig heeft moet expliciet in `env` staan. |
 | `HTTP 401: Invalid or expired API token` | Token ingetrokken, verlopen, verkeerd overgetypt, of het account is gedeactiveerd. Maak een nieuw token aan. |
-| `HTTP 404` met een HTML-body (`<center>404 Not Found</center>`, `Server: nginx`) | De host blokkeert de `Authorization`-header vóór PHP. Deze server stuurt het token ook in `X-API-Token` en werkt daarom; een eigen client moet die header meesturen. |
+| `HTTP 404` met een HTML-body (`Server: nginx`) | De host laat een tokenheader met een waarde van 43 tekens of meer niet door naar `api/v1/*.php` — nog vóór PHP. Maak het token niet langer dan 42 tekens (deze installatie geeft er een van 31). |
 | `FUNDINGRADAR_API_URL does not look like an http(s) URL` | De URL mist het schema (`https://`). |
 | `must point at the application root, not at the API directory` | De URL eindigt op `/api/v1`; haal dat stuk eraf. |
 | `the FundingRadar API answered with something that is not JSON` | De URL wijst niet naar de applicatie (verkeerd subpad, of een loginpagina). Controleer of `/api/v1/me.php` op die host bestaat. |
