@@ -29,8 +29,8 @@ De API zelf heeft interactieve documentatie op `/api/v1/docs.php` van de install
 
 ## Snel starten
 
-De repository staat op `https://github.com/HASUniversity/fundingradar-mcp` (privé — je hebt
-toegang nodig als lid van de HASUniversity-organisatie).
+De repository staat op `https://github.com/HASUniversity/fundingradar-mcp` (publiek — de
+installatie hieronder vraagt geen account).
 
 ```bash
 pip install git+https://github.com/HASUniversity/fundingradar-mcp

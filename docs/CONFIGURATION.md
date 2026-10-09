@@ -24,8 +24,7 @@ pip install git+https://github.com/HASUniversity/fundingradar-mcp
 ```
 
 Daarmee staat het commando `fundingradar-mcp` op je PATH en is de clientconfig één regel:
-`"command": "fundingradar-mcp"`. De repo is privé, dus dit vraagt toegang als lid van de
-HASUniversity-organisatie.
+`"command": "fundingradar-mcp"`. De repo is publiek, dus dit vraagt geen account.
 
 Of werk in een checkout (`git clone https://github.com/HASUniversity/fundingradar-mcp`, daarna
 een venv en `pip install -r requirements.txt`); dan start de client
