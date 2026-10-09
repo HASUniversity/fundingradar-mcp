@@ -23,7 +23,7 @@ In FundingRadar: **Settings → API access → Create token**.
 - Geldigheid: 90 dagen, 1 jaar of nooit.
 - Je **wachtwoord** wordt gevraagd: een token werkt door nadat je uitlogt, dus een gestolen
   sessie alleen mag er geen kunnen aanmaken.
-- Het token (`fr_…`) wordt **één keer** getoond. Daarna staat er alleen nog een prefix in de
+- Het token (`fdr_…`) wordt **één keer** getoond. Daarna staat er alleen nog een prefix in de
   lijst — de server bewaart uitsluitend een SHA-256-hash.
 - Intrekken kan altijd, met de knop naast het token. Wat het token gebruikte, houdt er direct
   mee op.
@@ -32,11 +32,11 @@ In FundingRadar: **Settings → API access → Create token**.
 
 | Variabele | Verplicht | Default | Toelichting |
 |---|---|---|---|
-| `FUNDINGRADAR_API_TOKEN` | ja | — | `fr_…`, uit Settings → API access |
+| `FUNDINGRADAR_API_TOKEN` | ja | — | `fdr_…`, uit Settings → API access |
 | `FUNDINGRADAR_API_URL` | nee | `https://dilab.has.nl/showcases/fundingradar` | De **applicatieroot**, niet `/api/v1`. Een pad dat op `/api/v1` eindigt wordt geweigerd met uitleg |
 | `FUNDINGRADAR_API_TIMEOUT` | nee | `30` | Seconden, 1–300 |
 
-Een token dat niet met `fr_` begint wordt geweigerd; een ontbrekend token geeft een foutmelding
+Een token dat niet met `fdr_` (of het oudere `fr_`) begint wordt geweigerd; een ontbrekend token geeft een foutmelding
 die naar de instellingenpagina verwijst. De server start altijd — pas een toolaanroep faalt.
 
 ---
@@ -53,7 +53,7 @@ begrijpen. Zet dit als `.mcp.json` in de root van je project:
       "command": "/absoluut/pad/.venv/bin/python",
       "args": ["/absoluut/pad/server.py"],
       "env": {
-        "FUNDINGRADAR_API_TOKEN": "fr_PLAK-HIER-JE-TOKEN"
+        "FUNDINGRADAR_API_TOKEN": "fdr_PLAK-HIER-JE-TOKEN"
       }
     }
   }
@@ -83,7 +83,7 @@ Sleutel: `mcpServers` — hetzelfde formaat als hierboven.
       "command": "D:/GIT/fundingradar-mcp/.venv/Scripts/python.exe",
       "args": ["D:/GIT/fundingradar-mcp/server.py"],
       "env": {
-        "FUNDINGRADAR_API_TOKEN": "fr_..."
+        "FUNDINGRADAR_API_TOKEN": "fdr_..."
       }
     }
   }
@@ -98,7 +98,7 @@ Claude Desktop opnieuw starten (het leest de config alleen bij het opstarten).
 
 ```bash
 claude mcp add fundingradar --scope project \
-  --env FUNDINGRADAR_API_TOKEN=fr_... \
+  --env FUNDINGRADAR_API_TOKEN=fdr_... \
   -- /pad/naar/.venv/bin/python /pad/naar/server.py
 ```
 
@@ -119,7 +119,7 @@ de letterlijke `${VAR}`-tekst, dus gebruik `${VAR:-default}` als je dat risico w
       "command": "D:/GIT/fundingradar-mcp/.venv/Scripts/python.exe",
       "args": ["D:/GIT/fundingradar-mcp/server.py"],
       "env": {
-        "FUNDINGRADAR_API_TOKEN": "fr_..."
+        "FUNDINGRADAR_API_TOKEN": "fdr_..."
       }
     }
   }
@@ -147,7 +147,7 @@ Sleutel: `mcpServers`. Bij een gelijke servernaam wint de projectversie.
       "command": "D:/GIT/fundingradar-mcp/.venv/Scripts/python.exe",
       "args": ["D:/GIT/fundingradar-mcp/server.py"],
       "env": {
-        "FUNDINGRADAR_API_TOKEN": "fr_..."
+        "FUNDINGRADAR_API_TOKEN": "fdr_..."
       }
     }
   }
@@ -166,7 +166,7 @@ mcp_servers:
     command: "D:/GIT/fundingradar-mcp/.venv/Scripts/python.exe"
     args: ["D:/GIT/fundingradar-mcp/server.py"]
     env:
-      FUNDINGRADAR_API_TOKEN: "fr_..."
+      FUNDINGRADAR_API_TOKEN: "fdr_..."
     timeout: 60
 ```
 
@@ -175,7 +175,7 @@ Of via de CLI:
 ```bash
 hermes mcp add fundingradar \
   --command "D:/GIT/fundingradar-mcp/.venv/Scripts/python.exe" \
-  --env FUNDINGRADAR_API_TOKEN=fr_... \
+  --env FUNDINGRADAR_API_TOKEN=fdr_... \
   --args "D:/GIT/fundingradar-mcp/server.py"
 ```
 

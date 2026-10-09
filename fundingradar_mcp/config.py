@@ -20,8 +20,11 @@ TIMEOUT_VAR = "FUNDINGRADAR_API_TIMEOUT"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_BASE_URL = "https://dilab.has.nl/showcases/fundingradar"
 
-#: Shape of a personal token as the settings page issues it.
-TOKEN_PREFIX = "fr_"
+#: Shape of a personal token as the settings page issues it. Two prefixes are accepted:
+#: the current one, and `fr_` for tokens minted before it changed. The prefix moved because
+#: the production host answers its own 404 for a `fr_` value in a token header on
+#: api/v1/*.php (measured 2026-10-09; see docs/OPERATIONS.md).
+TOKEN_PREFIXES = ("fdr_", "fr_")
 
 
 class ConfigError(RuntimeError):
@@ -38,9 +41,10 @@ class Settings:
 
     def masked_token(self) -> str:
         """The token with only its prefix visible; safe for logs and error messages."""
-        if len(self.token) <= len(TOKEN_PREFIX) + 8:
+        visible = 8  # characters of the body shown next to the prefix
+        if len(self.token) <= visible + 4:
             return "***"
-        return f"{self.token[: len(TOKEN_PREFIX) + 8]}…***"
+        return f"{self.token[: visible + 4]}…***"
 
 
 def _value(env: Mapping[str, Any], name: str) -> str | None:
@@ -97,10 +101,10 @@ def load_settings(env: Mapping[str, Any] | None = None) -> Settings:
             f"missing required environment variable {API_TOKEN_VAR} — create a token in "
             "FundingRadar under Settings → API access"
         )
-    if not token.startswith(TOKEN_PREFIX):
+    if not token.startswith(TOKEN_PREFIXES):
         raise ConfigError(
             f"{API_TOKEN_VAR} does not look like a FundingRadar API token (expected it to "
-            f"start with {TOKEN_PREFIX!r})"
+            f"start with one of {', '.join(repr(p) for p in TOKEN_PREFIXES)})"
         )
 
     timeout = _timeout(_value(source, TIMEOUT_VAR) or str(DEFAULT_TIMEOUT))

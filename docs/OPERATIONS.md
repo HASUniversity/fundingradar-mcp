@@ -54,9 +54,10 @@ een database-rol verder nog mag.
 Het token reist in **beide** headervormen: deze server stuurt `Authorization: Bearer` én
 `X-API-Token`, zodat een proxy of front-end die één van de twee aanpast geen blokkade wordt.
 
-Wat wel een harde grens is: op de productiehost komt niets boven 42 tekens aan — nginx geeft
-zijn eigen 404 op een tokenheader van 43 tekens of meer naar `api/v1/*.php`. Daarom zijn de
-tokens 31 tekens (168 bits); zie `docs/api-v1.md` in de FundingRadar-repo voor de meting.
+Wat wel een harde grens is: op de productiehost wordt een `fr_`-waarde in de tokenheader naar
+`api/v1/*.php` door nginx weggefilterd (eigen 404, nog vóór PHP), terwijl andere prefixen en
+queryparameters doorkomen. Daarom zijn tokens 32 tekens met prefix `fdr_` in plaats van `fr_`;
+zie `docs/api-v1.md` in de FundingRadar-repo voor de metingen.
 
 Wat het **niet** doet: autorisatie per lectoraat. Elk token leest dezelfde data als de
 webapplicatie; er is nog geen scoping op `user_research_group`. Dat is de logische volgende stap
@@ -84,10 +85,10 @@ python tests/print_samples.py
 
 | Meting 2026-10-09 | Resultaat |
 |---|---|
-| Unit tests (MCP) | 31 uitgevoerd, alle geslaagd |
+| Unit tests (MCP) | 32 uitgevoerd, alle geslaagd |
 | Protocolchecks tegen een echte installatie | 16 uitgevoerd, alle geslaagd |
 | API end-to-end (`tests/test_api_v1_e2e.py` in de FundingRadar-repo) | 42 checks: inloggen, token aanmaken via de instellingenpagina, alle acht endpoints, beide headervormen, twaalf geweigerde invoerwaarden, tokenspec-pariteit, intrekken en daarna 401 |
-| Token-unitchecks (`tests/test_api_tokens.php`) | 38 checks op formaat, hashing, headerresolutie en headerparsing |
+| Token-unitchecks (`tests/test_api_tokens.php`) | 42 checks op formaat, hashing, headerresolutie en headerparsing |
 
 ## 5. Problemen oplossen
 

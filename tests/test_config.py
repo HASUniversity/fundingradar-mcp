@@ -16,7 +16,7 @@ from fundingradar_mcp.config import ConfigError, Settings, load_settings
 
 BASE = {
     "FUNDINGRADAR_API_URL": "https://example.org/showcases/fundingradar",
-    "FUNDINGRADAR_API_TOKEN": "fr_" + "a" * 43,
+    "FUNDINGRADAR_API_TOKEN": "fdr_" + "a" * 28,
 }
 
 
@@ -24,8 +24,13 @@ class LoadSettingsTests(unittest.TestCase):
     def test_base_url_and_token_are_used(self) -> None:
         settings = load_settings(dict(BASE))
         self.assertEqual(settings.base_url, "https://example.org/showcases/fundingradar")
-        self.assertEqual(settings.token, "fr_" + "a" * 43)
+        self.assertEqual(settings.token, "fdr_" + "a" * 28)
         self.assertEqual(settings.timeout, 30.0)
+
+    def test_the_old_prefix_is_still_accepted(self) -> None:
+        # Tokens minted before the prefix changed must keep working.
+        settings = load_settings(dict(BASE, FUNDINGRADAR_API_TOKEN="fr_" + "a" * 28))
+        self.assertEqual(settings.token, "fr_" + "a" * 28)
 
     def test_trailing_slash_is_dropped(self) -> None:
         env = dict(BASE, FUNDINGRADAR_API_URL="https://example.org/app/")
@@ -72,14 +77,14 @@ class LoadSettingsTests(unittest.TestCase):
 
 class MaskedTokenTests(unittest.TestCase):
     def test_only_the_prefix_is_visible(self) -> None:
-        settings = Settings(base_url="https://example.org", token="fr_" + "abcdefgh" + "i" * 35, timeout=30)
+        settings = Settings(base_url="https://example.org", token="fdr_" + "abcdefgh" + "i" * 20, timeout=30)
         masked = settings.masked_token()
-        self.assertTrue(masked.startswith("fr_abcdefgh"))
+        self.assertTrue(masked.startswith("fdr_abcdefgh"))
         self.assertIn("***", masked)
-        self.assertNotIn("i" * 35, masked)
+        self.assertNotIn("i" * 20, masked)
 
     def test_short_token_is_hidden_entirely(self) -> None:
-        self.assertEqual(Settings("https://example.org", "fr_short", 30).masked_token(), "***")
+        self.assertEqual(Settings("https://example.org", "fdr_short", 30).masked_token(), "***")
 
 
 def _response(payload: str, status: int = 200) -> mock.MagicMock:
@@ -104,7 +109,7 @@ def _http_error(status: int, payload: str) -> urllib.error.HTTPError:
 
 class GetTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.api = FundingRadarApi("https://example.org/app", "fr_" + "a" * 43)
+        self.api = FundingRadarApi("https://example.org/app", "fdr_" + "a" * 28)
 
     def test_successful_call_returns_the_parsed_body(self) -> None:
         payload = json.dumps({"data": {"ok": True}, "meta": {"count": 1}})
@@ -113,14 +118,14 @@ class GetTests(unittest.TestCase):
         self.assertEqual(body["meta"]["count"], 1)
         request = opener.call_args[0][0]
         self.assertEqual(request.full_url, "https://example.org/app/api/v1/me.php")
-        self.assertEqual(request.headers["Authorization"], "Bearer fr_" + "a" * 43)
+        self.assertEqual(request.headers["Authorization"], "Bearer fdr_" + "a" * 28)
 
     def test_token_is_also_sent_in_the_custom_header(self) -> None:
-        # The production host 404s on Authorization, so the client must not depend on it.
+        # One header may be filtered by a front-end while the other gets through.
         with mock.patch("urllib.request.urlopen", return_value=_response("{}")) as opener:
             self.api.get("/api/v1/me.php")
         request = opener.call_args[0][0]
-        self.assertEqual(request.headers["X-api-token"], "fr_" + "a" * 43)
+        self.assertEqual(request.headers["X-api-token"], "fdr_" + "a" * 28)
 
     def test_query_string_is_built_and_empties_are_dropped(self) -> None:
         with mock.patch("urllib.request.urlopen", return_value=_response("{}")) as opener:

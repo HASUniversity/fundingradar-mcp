@@ -11,7 +11,7 @@ alleen lezen — dat is een eigenschap van de API, niet een afspraak.
 
 ## Status
 
-Versie 0.2.0 (2026-10-09). Getest: 31 unit tests en 16 protocolchecks over stdio tegen een
+Versie 0.2.0 (2026-10-09). Getest: 32 unit tests en 16 protocolchecks over stdio tegen een
 echte installatie. De API-kant is getest met 42 end-to-end checks (inloggen → token maken →
 API gebruiken → token intrekken) plus 38 PHP-unitchecks; die tests staan in de
 FundingRadar-repository (`tests/test_api_v1_e2e.py`, `tests/test_api_tokens.php`).
@@ -58,7 +58,7 @@ Daarna aanmelden bij je client — één blok JSON of YAML, zie
       "args": ["/pad/naar/fundingradar-mcp/server.py"],
       "env": {
         "FUNDINGRADAR_API_URL": "https://dilab.has.nl/showcases/fundingradar",
-        "FUNDINGRADAR_API_TOKEN": "fr_..."
+        "FUNDINGRADAR_API_TOKEN": "fdr_..."
       }
     }
   }
