@@ -15,6 +15,23 @@ Twee dingen zijn in élke client hetzelfde en gaan meestal mis:
 
 ---
 
+## 0. Eerst de server beschikbaar hebben
+
+Twee manieren; de rest van dit document werkt met allebei.
+
+```bash
+pip install git+https://github.com/HASUniversity/fundingradar-mcp
+```
+
+Daarmee staat het commando `fundingradar-mcp` op je PATH en is de clientconfig één regel:
+`"command": "fundingradar-mcp"`. De repo is privé, dus dit vraagt toegang als lid van de
+HASUniversity-organisatie.
+
+Of werk in een checkout (`git clone https://github.com/HASUniversity/fundingradar-mcp`, daarna
+een venv en `pip install -r requirements.txt`); dan start de client
+`/pad/naar/.venv/bin/python /pad/naar/server.py`. De voorbeelden hieronder gebruiken die vorm —
+gebruik je de pip-variant, vervang dan `command` en `args` door het losse commando hierboven.
+
 ## 1. Eerst een token aanmaken
 
 In FundingRadar: **Settings → API access → Create token**.
