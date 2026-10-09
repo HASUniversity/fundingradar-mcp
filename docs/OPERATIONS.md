@@ -53,11 +53,12 @@ een database-rol verder nog mag.
 
 Het token reist in **drie** transporten, en deze server probeert ze in volgorde: `Authorization:
 Bearer`, `Authorization: Basic` (het token als gebruikersnaam; base64 verbergt de tokenvorm) en
-`X-FundingRadar-Token`. Bij een weigering van de host gaat hij door naar de volgende en onthoudt
-wat werkte. Op de productiehost worden tokenachtige waarden in `Authorization` en `X-API-Token`
-door nginx weggefilterd (eigen 404, nog vóór PHP) en verschuift welke combinatie doorkomt; de
-tokens zijn daarom 32 tekens met prefix `fdr_`. Zie `docs/api-v1.md` in de FundingRadar-repo voor
-de metingen.
+`X-FundingRadar-Token`. Bij een weigering gaat hij door naar de volgende en onthoudt wat werkte.
+Dat vangnet is gebouwd toen de productiehost tokenachtige waarden in `Authorization` en
+`X-API-Token` leek weg te filteren; die meting reproduceerde op 2026-10-09 **niet**: headers van
+20 tot 90 tekens en de prefixen `fr_`, `fdr_` en `sk-` geven alle een **401 uit de applicatie**.
+De tokens zijn 32 tekens met prefix `fdr_` — dat is een formaatkeuze, geen hostbeperking. Zie
+`docs/api-v1.md` in de FundingRadar-repo voor de metingen.
 
 Wat het **niet** doet: autorisatie per lectoraat. Elk token leest dezelfde data als de
 webapplicatie; er is nog geen scoping op `user_research_group`. Dat is de logische volgende stap
@@ -101,7 +102,7 @@ het alleen op een omgeving waar dat de bedoeling is.
 |---|---|
 | `missing required environment variable FUNDINGRADAR_API_TOKEN` | Het token staat niet in de clientconfig. Let op: Hermes geeft stdio-servers alleen een veilige basisomgeving; alles wat de server nodig heeft moet expliciet in `env` staan. |
 | `HTTP 401: Invalid or expired API token` | Token ingetrokken, verlopen, verkeerd overgetypt, of het account is gedeactiveerd. Maak een nieuw token aan. |
-| `HTTP 404` met een HTML-body (`Server: nginx`) | De host laat een tokenheader met een waarde van 43 tekens of meer niet door naar `api/v1/*.php` — nog vóór PHP. Maak het token niet langer dan 42 tekens (deze installatie geeft er een van 31). |
+| `HTTP 404` met een HTML-body (`Server: nginx`) | Meet opnieuw: op 2026-10-09 gaf een tokenheader van 20-90 tekens, met `fr_`, `fdr_` of `sk-`, gewoon **401 uit de applicatie**. De "43 tekens"-regel die hier eerder stond reproduceert dus niet; die 404's kwamen uit een fatale fout in de applicatie. Sluit de applicatie uit (logs, `php -l` op de gewijzigde bestanden, een e2e-run) voordat je een hostregel aanneemt. |
 | `FUNDINGRADAR_API_URL does not look like an http(s) URL` | De URL mist het schema (`https://`). |
 | `must point at the application root, not at the API directory` | De URL eindigt op `/api/v1`; haal dat stuk eraf. |
 | `the FundingRadar API answered with something that is not JSON` | De URL wijst niet naar de applicatie (verkeerd subpad, of een loginpagina). Controleer of `/api/v1/me.php` op die host bestaat. |
