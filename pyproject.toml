@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fundingradar-mcp"
+version = "0.2.0"
+description = "Read-only MCP server exposing the FundingRadar API to any MCP client."
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.3,<3",
+]
+
+[project.scripts]
+fundingradar-mcp = "fundingradar_mcp.app:main"
+
+[tool.setuptools]
+packages = ["fundingradar_mcp"]
