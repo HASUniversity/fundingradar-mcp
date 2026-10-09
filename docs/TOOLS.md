@@ -43,7 +43,8 @@ onderaan voor het verschil en wanneer je welke doorgeeft.
 
 | Parameter | Type | Default | Betekenis |
 |---|---|---|---|
-| `query` | string | — | Vrije tekst in titel en beschrijving |
+| `query` | string | — | **Het onderwerp, geen vraag.** De woorden worden samen met hun NL/EN-tegenhanger en de URL's van de calls gezocht (zie `expand`) |
+| `expand` | bool | `true` | Zoek ook de synoniemen (bodem ↔ soil, glastuinbouw ↔ greenhouse horticulture) en laat de call-URL als treffer tellen. `false` = letterlijk zoeken |
 | `source` | string | — | Bron op short name óf volledige naam, bv. `ZonMw`, `RVO`, `EU Portal` (onbekend → fout) |
 | `research_group` | string | — | Lectoraat-slug of naam; alleen calls die de pijplijn daaraan matchte |
 | `focus_area` | string | — | Eén van `onderzoek`, `onderwijs`, `zakelijke_dienstverlening`; andere waarden worden geweigerd |
@@ -60,6 +61,21 @@ Sortering standaard: dichtstbijzijnde deadline eerst, zonder deadline achteraan.
 je alleen calls waar nog iets mee kan (niet gesloten, deadline niet gepasseerd); met
 `include_closed=True`, een expliciete `status` of een `deadline_before` in het verleden krijg je
 het archief erbij.
+
+**Zoeken is letterlijk — help het.** Zonder uitbreiding moet *elk* woord van `query` matchen, dus
+een hele alinea of een term in de verkeerde taal vindt niets (gemeten: een volledige zin gaf 0
+calls). Met `expand` aan (default) wordt de vraag omgezet in termen en ge-OR'd over titel,
+beschrijving, fonds, programma **en de URL's van de call** (`/bijdrageregeling-water-en-bodem`).
+Diezelfde zin gaf 210 calls. Het antwoord bevat `searched_terms`: wat er werkelijk gezocht is —
+lees dat en stuur bij als je onderwerp er niet in zit. Verder dan vier woorden en drie verwanten
+per woord gaat het niet, en stopwoorden of te algemene woorden (health, management, kwaliteit)
+worden overgeslagen.
+
+Sweep liever meerdere assen dan één term: onderwerp (bodem, water, ai), methode (monitoring,
+sensor, remote sensing), sector (glastuinbouw, veehouderij, voeding, verpakking). En combineer
+dit met `calls_for_research_group`: dat is de semantische route, want de pijplijn matchte elke
+call zelf aan een lectoraat met een reden (`match_reason`). In de praktijk komt de beste treffer
+vaak uit die matches en niet uit de trefwoorden.
 
 Elke call in het resultaat bevat de dashboardvelden plus `research_group_count`, `tags`,
 `research_groups` (id + naam) en `is_favorited`. `raw_content` (de volledige scrape-pagina) wordt

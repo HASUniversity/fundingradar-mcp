@@ -51,6 +51,7 @@ class FundingRadarService:
         sort_by: Any = None,
         include_closed: Any = False,
         include_ineligible: Any = False,
+        expand: Any = True,
         limit: Any = 20,
         offset: Any = 0,
     ) -> dict[str, Any]:
@@ -77,6 +78,9 @@ class FundingRadarService:
                 "sort_by": sort_by,
                 "include_closed": include_closed,
                 "include_ineligible": include_ineligible,
+                # The server turns the question into terms (Dutch/English equivalents) and lets
+                # the call's own URLs count as a hit; without it a whole paragraph finds nothing.
+                "expand": expand if query else None,
                 "limit": limit,
                 "offset": offset,
             },
@@ -88,6 +92,9 @@ class FundingRadarService:
             "offset": meta.get("offset", offset),
             "limit": meta.get("limit", limit),
             "has_more": meta.get("has_more", False),
+            # How the question was interpreted: the words that were actually searched, so an
+            # agent can see why something did or did not come back.
+            "searched_terms": meta.get("expanded_terms", []),
             "calls": body.get("data", []),
         }
 

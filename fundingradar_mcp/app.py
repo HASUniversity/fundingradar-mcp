@@ -31,31 +31,72 @@ SERVER_TITLE = "FundingRadar (HAS green academy)"
 SERVER_DESCRIPTION = "Read-only access to the FundingRadar funding-call database."
 
 INSTRUCTIONS = """\
-FundingRadar aggregates Dutch and European funding calls (subsidies, grants, tenders) and
-matches them to HAS green academy research groups. This server reads the FundingRadar API
-with a personal token; it is read-only and has no write path.
+FundingRadar is HAS green academy's own instrument: it collects Dutch and European funding calls
+(subsidies, grants, tenders) every day, has a language model extract the conditions from each
+call, and matches every call to the research groups it is relevant for — those groups get a
+weekly digest. This server reads that database through the FundingRadar API with a personal
+token. It is read-only; there is no write path.
+
+The question it exists for: someone has a plan, a paragraph or a research idea, and wants to
+know which funding fits and whether they can still apply. Everything below serves that.
+
+How to search (the search is literal — help it):
+* Send the *subject*, not the question. `search_calls` searches your words and, with `expand`
+  on (the default), also their Dutch/English equivalents plus the variants HAS works with
+  (bodem ↔ soil, glastuinbouw ↔ greenhouse horticulture, ai ↔ kunstmatige intelligentie), and
+  it lets a call's own URL count as a hit. Measured against production: a full sentence
+  ("We willen onderzoek doen naar bodemkwaliteit en watermanagement in de glastuinbouw") found
+  **0** calls, while its expanded subject found **210**. The answer's `searched_terms` shows
+  what was actually looked for — read it, and correct it if it missed your subject.
+* Sweep several angles instead of one word: subject (soil, water, ai), method (monitoring,
+  sensor, remote sensing), sector (horticulture, livestock, food, packaging). One keyword
+  misses most of what exists.
+* The keyword search covers title, description, funder, programme and the URLs. The stronger
+  route for "what is relevant for us" is `calls_for_research_group`: the pipeline itself
+  matched every call to HAS research groups, with a reason in `match_reason`. Use both — in
+  practice the best hit often comes from the group matches and not from the keywords.
+  `list_research_groups` gives the slugs.
+* `funding_type` is free text and dominated by `grant`; treat it as indicative, not as a
+  controlled vocabulary. `focus_areas` is only reliable for onderzoek, onderwijs and
+  zakelijke_dienstverlening.
+
+Status and dates (read them as what they are):
+* `status` is open, upcoming, closed or intake_closed. `deadline` is the main date;
+  `deadline_eoi` is the earlier expression-of-interest date, and some calls only have that one.
+* By default you get only calls that can still be acted on: not a closed round and the deadline
+  not passed. `include_closed=True` opens the archive; naming an explicit `status` switches
+  that off too.
+* `intake_closed` does NOT mean the deadline passed — the intake round closed, the application
+  round may still be open. Never conclude "you can still apply" from the status alone.
+* The stored status and deadline come from a daily pipeline and can lag behind the funder.
+  When the answer depends on it, read the source: `read_call_page` fetches the funder's own page
+  and returns its text. It refuses to guess — a JavaScript-only page or a bot wall comes back as
+  a clear failure, and then you report it as unverified instead of inventing a status.
+* Hidden unless asked: calls the pipeline judged not eligible for HAS (`include_ineligible=True`)
+  and calls with a deadline before 2020 (an explicit `deadline_after` replaces that cut-off).
+
+URLs are always in the answer: `url` (the funder's own page), `apply_url`, `call_document_url`
+and `tracked_url` — the same destination through the application's click counter, so a click
+shows up in Click Analytics. Give `tracked_url` to a person and `url` to a machine that reads
+the page. Never mention a call without its URL.
+
+Context beyond the record: this server does not browse the open web. For what a programme
+entails, who ran it before, or whether a round is expected again, use your own web tools — and
+keep it clear which part of an answer came from the database and which came from elsewhere.
 
 What the data looks like (measured against production on 2026-10-09):
-* `funding_calls` (4,452 rows) holds the calls. `status` is one of open (346), upcoming
-  (313), closed (3,770) or intake_closed (16). `urgency` is EXPIRED, PLAN, HOT or WATCH.
-  `deadline` is a date and is the field to filter on: only 590 calls have a deadline in
-  the future, so pass `status="open"` or `deadline_after` when the question is about what
-  can still be applied for.
+* `funding_calls` (4,452 rows) holds the calls. `status` is open (346), upcoming (313),
+  closed (3,770) or intake_closed (16). `urgency` is EXPIRED, PLAN, HOT or WATCH. `deadline` is
+  a date and is the field to filter on: only 590 calls have a deadline in the future, so pass
+  `status="open"` or `deadline_after` when the question is about what can still be applied for.
 * `focus_areas` is an array. Only three values are canonical and reliably present:
   `onderzoek` (1,778 calls), `zakelijke_dienstverlening` (669) and `onderwijs` (139). The
   extraction pipeline also writes free text there, which is why this server refuses to
   filter on anything else.
-* `funding_type` is free text and dominated by `grant` (3,227); treat the other values as
-  indicative, not as a controlled vocabulary.
 * `research_group` (12 rows, `is_professorship` marks the lectoraten) and their matches
   (5,745) hold the reason a call was matched and whether the group was e-mailed
   (`match_reason`, `email_sent`, `notified_at`). 3,107 calls have no group match at all.
 * `funding_sources` (32 rows, 31 active) holds the funders that are scraped.
-
-Two defaults to be aware of when a count looks lower than expected: calls the pipeline
-classified as not eligible for HAS, and calls with a deadline before 2020, are hidden —
-same as in the web application. Pass `include_ineligible=True` for the first group; an
-explicit `deadline_after` replaces the 2020 cut-off.
 """
 
 server = MCPServer(
@@ -142,6 +183,15 @@ def search_calls(
         bool,
         Field(description="Include calls the pipeline classified as not eligible for HAS; off by default."),
     ] = False,
+    expand: Annotated[
+        bool,
+        Field(description=(
+            "Search the words as terms AND their Dutch/English equivalents, and let the call's URL "
+            "count as a hit (default on). Send the subject, not a whole paragraph: a full sentence "
+            "found 0 calls where the expanded subject found 210. The answer's searched_terms shows "
+            "what was looked for. Set False only when you need one literal word."
+        )),
+    ] = True,
     limit: Annotated[int, Field(description="Page size, 1-100.", ge=1, le=100)] = 20,
     offset: Annotated[int, Field(description="Rows to skip, for paging.", ge=0)] = 0,
 ) -> dict[str, Any]:
@@ -149,6 +199,12 @@ def search_calls(
 
     By default only calls that can still be acted on: not a closed round, and not past the
     deadline. Pass include_closed=True for the archive, or name an explicit status.
+
+    `query` is a *subject*, not a question: the words you send are searched together with their
+    Dutch/English equivalents and the calls' own URLs (see `expand`), and `searched_terms` in the
+    answer lists what was actually used. Sweep several angles (subject, method, sector) rather
+    than sending one sentence — and combine this with `calls_for_research_group`, which uses the
+    pipeline's own matches to HAS research groups.
 
     Every call carries `url` (the funder's own page), `tracked_url` (the same destination through
     the application's click counter — hand this one to people, so the click shows up in Click
@@ -168,6 +224,7 @@ def search_calls(
             sort_by=sort_by,
             include_closed=include_closed,
             include_ineligible=include_ineligible,
+            expand=expand,
             limit=limit,
             offset=offset,
         )

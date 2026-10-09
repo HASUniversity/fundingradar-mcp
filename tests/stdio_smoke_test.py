@@ -174,6 +174,23 @@ def main() -> int:
         server_info = (handshake.get("result") or {}).get("serverInfo") or {}
         check(server_info.get("name") == "fundingradar", "initialize returns the fundingradar server", json.dumps(server_info))
         print(f"serverInfo: {json.dumps(server_info)}")
+
+        # The instructions are the context every client gets: they must actually explain how to
+        # search well and how to treat the stored status, not just name the server.
+        instructions = (handshake.get("result") or {}).get("instructions") or ""
+        check(len(instructions) > 1500, "initialize carries working instructions, not a one-liner",
+              f"{len(instructions)} chars")
+        for needle, why in (
+            ("searched_terms", "it explains that the answer shows what was searched"),
+            ("expand", "it explains the synonym/URL expansion"),
+            ("read_call_page", "it points at reading the funder's page for the current status"),
+            ("intake_closed", "it warns that intake_closed does not mean the deadline passed"),
+            ("tracked_url", "it says which URL goes to a person and which to a machine"),
+            ("web tools", "it says the server does not browse the web itself"),
+        ):
+            check(needle in instructions, f"the instructions mention {needle} ({why})")
+        print(f"instructions: {len(instructions)} chars")
+
         client.notify("notifications/initialized")
 
         listing = client.request("tools/list")

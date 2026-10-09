@@ -12,6 +12,7 @@ import unittest
 from unittest import mock
 
 from fundingradar_mcp.client import ApiError
+from fundingradar_mcp.client import FundingRadarApi as Client
 from fundingradar_mcp.page import DEFAULT_MAX_CHARS
 from fundingradar_mcp.service import FundingRadarService
 
@@ -181,6 +182,43 @@ class FundingStatsTests(unittest.TestCase):
             FundingRadarService(api).funding_stats(group_by="colour")
         self.assertIn("research_group", str(caught.exception))
         self.assertEqual(api.requests, [])
+
+
+class SearchExpansionTests(unittest.TestCase):
+    """search_calls asks the API to expand the question, and shows what it searched."""
+
+    def _api(self):
+        return FakeApi({
+            "/api/v1/calls.php": {
+                "data": [{"public_id": "x"}],
+                "meta": {"total": 210, "count": 1, "expanded_terms": ["bodemkwaliteit", "soil"]},
+            }
+        })
+
+    def test_expansion_is_on_by_default_and_reported(self) -> None:
+        api = self._api()
+        result = FundingRadarService(api).search_calls(query="bodemkwaliteit en water")
+
+        _, params = api.requests[0]
+        self.assertIs(params["expand"], True)
+        self.assertEqual(result["searched_terms"], ["bodemkwaliteit", "soil"])
+        self.assertEqual(result["total_matched"], 210)
+
+    def test_expansion_can_be_turned_off(self) -> None:
+        api = self._api()
+        FundingRadarService(api).search_calls(query="bodem", expand=False)
+        _, params = api.requests[0]
+        self.assertIs(params["expand"], False)
+
+    def test_no_query_means_nothing_to_expand(self) -> None:
+        api = self._api()
+        FundingRadarService(api).search_calls(source="RVO")
+        _, params = api.requests[0]
+        self.assertIsNone(params["q"])
+        self.assertIsNone(params["expand"], "expand is only sent together with a query")
+        # The client drops unset values, so neither parameter reaches the API.
+        self.assertNotIn("expand=", Client._encode(params))
+        self.assertNotIn("q=", Client._encode(params))
 
 
 class ReadCallPageTests(unittest.TestCase):
