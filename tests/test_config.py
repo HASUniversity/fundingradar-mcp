@@ -5,6 +5,7 @@ Run from the repository root:  python -m unittest discover -s tests -t .
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import unittest
@@ -120,12 +121,54 @@ class GetTests(unittest.TestCase):
         self.assertEqual(request.full_url, "https://example.org/app/api/v1/me.php")
         self.assertEqual(request.headers["Authorization"], "Bearer fdr_" + "a" * 28)
 
-    def test_token_is_also_sent_in_the_custom_header(self) -> None:
-        # One header may be filtered by a front-end while the other gets through.
+    def test_falls_back_to_basic_when_the_host_rejects_the_standard_header(self) -> None:
+        # The production host answers its own 404 (HTML, no JSON) before PHP runs.
+        html = "<html><head><title>404 Not Found</title></head><body>nginx</body></html>"
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=[_http_error(404, html), _response("{}")]) as opener:
+            self.api.get("/api/v1/me.php")
+        self.assertEqual(self.api.transport, "basic")
+        second = opener.call_args_list[1][0][0]
+        expected = base64.b64encode(("fdr_" + "a" * 28 + ":").encode("utf-8")).decode("ascii")
+        self.assertEqual(second.headers["Authorization"], "Basic " + expected)
+        self.assertNotIn("X-fundingradar-token", second.headers)
+
+    def test_falls_back_to_the_neutral_header(self) -> None:
+        html = "<html><title>404</title></html>"
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=[_http_error(404, html), _http_error(404, html), _response("{}")]) as opener:
+            self.api.get("/api/v1/me.php")
+        self.assertEqual(self.api.transport, "x-token")
+        third = opener.call_args_list[2][0][0]
+        self.assertEqual(third.headers["X-fundingradar-token"], "fdr_" + "a" * 28)
+
+    def test_a_real_api_404_is_not_treated_as_a_host_rejection(self) -> None:
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=_http_error(404, '{"error": "no such call"}')) as opener:
+            with self.assertRaises(ApiError) as caught:
+                self.api.get("/api/v1/call.php", {"id": "nope"})
+        self.assertIn("no such call", str(caught.exception))
+        self.assertEqual(opener.call_count, 1)  # the application answered: no retry
+
+    def test_every_transport_rejected_names_the_host_as_the_cause(self) -> None:
+        html = "<html><title>404</title></html>"
+        with mock.patch("urllib.request.urlopen", side_effect=[_http_error(404, html)] * 3):
+            with self.assertRaises(ApiError) as caught:
+                self.api.get("/api/v1/me.php")
+        message = str(caught.exception)
+        self.assertIn("host", message)
+        self.assertIn("bearer", message)
+
+    def test_the_transport_that_worked_is_tried_first_next_time(self) -> None:
+        html = "<html><title>404</title></html>"
+        with mock.patch("urllib.request.urlopen",
+                        side_effect=[_http_error(404, html), _response("{}")]):
+            self.api.get("/api/v1/me.php")
         with mock.patch("urllib.request.urlopen", return_value=_response("{}")) as opener:
             self.api.get("/api/v1/me.php")
         request = opener.call_args[0][0]
-        self.assertEqual(request.headers["X-api-token"], "fdr_" + "a" * 28)
+        self.assertIsNotNone(request.headers.get("Authorization"))
+        self.assertTrue(request.headers["Authorization"].startswith("Basic "))
 
     def test_query_string_is_built_and_empties_are_dropped(self) -> None:
         with mock.patch("urllib.request.urlopen", return_value=_response("{}")) as opener:

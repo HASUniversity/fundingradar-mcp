@@ -51,13 +51,13 @@ een database-rol verder nog mag.
    genegeerd: een verkeerde `focus_area`, `group_by` of `sort_by` levert een foutmelding met de
    toegestane waarden op.
 
-Het token reist in **beide** headervormen: deze server stuurt `Authorization: Bearer` én
-`X-API-Token`, zodat een proxy of front-end die één van de twee aanpast geen blokkade wordt.
-
-Wat wel een harde grens is: op de productiehost wordt een `fr_`-waarde in de tokenheader naar
-`api/v1/*.php` door nginx weggefilterd (eigen 404, nog vóór PHP), terwijl andere prefixen en
-queryparameters doorkomen. Daarom zijn tokens 32 tekens met prefix `fdr_` in plaats van `fr_`;
-zie `docs/api-v1.md` in de FundingRadar-repo voor de metingen.
+Het token reist in **drie** transporten, en deze server probeert ze in volgorde: `Authorization:
+Bearer`, `Authorization: Basic` (het token als gebruikersnaam; base64 verbergt de tokenvorm) en
+`X-FundingRadar-Token`. Bij een weigering van de host gaat hij door naar de volgende en onthoudt
+wat werkte. Op de productiehost worden tokenachtige waarden in `Authorization` en `X-API-Token`
+door nginx weggefilterd (eigen 404, nog vóór PHP) en verschuift welke combinatie doorkomt; de
+tokens zijn daarom 32 tekens met prefix `fdr_`. Zie `docs/api-v1.md` in de FundingRadar-repo voor
+de metingen.
 
 Wat het **niet** doet: autorisatie per lectoraat. Elk token leest dezelfde data als de
 webapplicatie; er is nog geen scoping op `user_research_group`. Dat is de logische volgende stap
@@ -85,10 +85,11 @@ python tests/print_samples.py
 
 | Meting 2026-10-09 | Resultaat |
 |---|---|
-| Unit tests (MCP) | 32 uitgevoerd, alle geslaagd |
+| Unit tests (MCP) | 36 uitgevoerd, alle geslaagd |
 | Protocolchecks tegen een echte installatie | 16 uitgevoerd, alle geslaagd |
-| API end-to-end (`tests/test_api_v1_e2e.py` in de FundingRadar-repo) | 42 checks: inloggen, token aanmaken via de instellingenpagina, alle acht endpoints, beide headervormen, twaalf geweigerde invoerwaarden, tokenspec-pariteit, intrekken en daarna 401 |
-| Token-unitchecks (`tests/test_api_tokens.php`) | 42 checks op formaat, hashing, headerresolutie en headerparsing |
+| API end-to-end (`tests/test_api_v1_e2e.py` in de FundingRadar-repo) | 44 checks: inloggen, token aanmaken via de instellingenpagina, alle acht endpoints, elk transport apart, geweigerde invoerwaarden, tokenspec-pariteit, intrekken en daarna 401 |
+| Token-unitchecks (`tests/test_api_tokens.php`) | 52 checks op formaat, hashing, transportresolutie, Basic-parsing en headerparsing |
+| Eind-tot-eind tegen **productie** (2026-10-09) | handshake + `tools/list` + vier toolaanroepen met echte data: `funding_stats` (4.452 calls, per bron), `list_sources`, `search_calls("bodem")` (14 treffers) en `calls_for_research_group("levende-bodem")` (444 matches, 60 open). Gedraaid met een tijdelijk token op een wegwerpaccount, daarna verwijderd |
 
 ## 5. Problemen oplossen
 

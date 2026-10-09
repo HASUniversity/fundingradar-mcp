@@ -11,10 +11,12 @@ alleen lezen — dat is een eigenschap van de API, niet een afspraak.
 
 ## Status
 
-Versie 0.2.0 (2026-10-09). Getest: 32 unit tests en 16 protocolchecks over stdio tegen een
-echte installatie. De API-kant is getest met 42 end-to-end checks (inloggen → token maken →
-API gebruiken → token intrekken) plus 38 PHP-unitchecks; die tests staan in de
-FundingRadar-repository (`tests/test_api_v1_e2e.py`, `tests/test_api_tokens.php`).
+Versie 0.2.0 (2026-10-09). Getest: 36 unit tests en 16 protocolchecks over stdio tegen een
+echte installatie. De API-kant is getest met 44 end-to-end checks (inloggen → token maken →
+API gebruiken → token intrekken) plus 52 PHP-unitchecks; die tests staan in de
+FundingRadar-repository (`tests/test_api_v1_e2e.py`, `tests/test_api_tokens.php`). Daarnaast is
+deze server end-to-end tegen **productie** gedraaid met een tijdelijk token: handshake, tools/list
+en vier toolaanroepen met echte data (zie `docs/OPERATIONS.md`).
 
 | Document | Waarvoor |
 |---|---|
