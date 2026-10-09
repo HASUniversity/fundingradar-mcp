@@ -29,10 +29,16 @@ De API zelf heeft interactieve documentatie op `/api/v1/docs.php` van de install
 
 ## Snel starten
 
-```bash
-git clone <repo-url> fundingradar-mcp
-cd fundingradar-mcp
+De repository staat op `https://github.com/HASUniversity/fundingradar-mcp` (privé — je hebt
+toegang nodig als lid van de HASUniversity-organisatie).
 
+```bash
+pip install git+https://github.com/HASUniversity/fundingradar-mcp
+# daarmee staat het commando `fundingradar-mcp` op je PATH
+
+# of, als je liever in de checkout werkt:
+git clone https://github.com/HASUniversity/fundingradar-mcp
+cd fundingradar-mcp
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt   # Windows
 # .venv/bin/python -m pip install -r requirements.txt          # macOS/Linux
@@ -41,6 +47,9 @@ cp .env.example .env
 # 1. Maak een token aan in FundingRadar: Settings → API access → Create token
 # 2. Plak het in .env achter FUNDINGRADAR_API_TOKEN
 ```
+
+Voor eindgebruikers staat dezelfde uitleg, met de link naar de handleiding per app, in de
+applicatie zelf: **Settings → API access → Connect an AI assistant** (`/mcp.php`).
 
 Controleren zonder client (dit is ook de test):
 

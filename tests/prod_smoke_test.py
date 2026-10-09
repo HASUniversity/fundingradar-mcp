@@ -19,13 +19,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import pathlib
 import secrets
 import subprocess
 import sys
 
 import psycopg2
 
-MCP_DIR = r"D:\GIT\fundingradar-mcp"
+# The checkout this file lives in, so the script works on any machine.
+MCP_DIR = str(pathlib.Path(__file__).resolve().parents[1])
 PROD_URL = "https://dilab.has.nl/showcases/fundingradar"
 TEST_EMAIL = "mcp-verificatie@example.invalid"
 
