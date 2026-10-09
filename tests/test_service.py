@@ -44,7 +44,7 @@ class SearchCallsTests(unittest.TestCase):
 
         path, params = api.requests[0]
         self.assertEqual(path, "/api/v1/calls.php")
-        self.assertEqual(params["q"], "waterstof")
+        self.assertEqual(params["query"], "waterstof")
         self.assertEqual(params["source"], "ZonMw")
         self.assertEqual(params["research_group"], "green-health")
         self.assertEqual(params["focus_area"], "onderzoek")
@@ -214,11 +214,11 @@ class SearchExpansionTests(unittest.TestCase):
         api = self._api()
         FundingRadarService(api).search_calls(source="RVO")
         _, params = api.requests[0]
-        self.assertIsNone(params["q"])
+        self.assertIsNone(params["query"])
         self.assertIsNone(params["literal"], "without a query there is nothing to search")
         # The client drops unset values, so neither parameter reaches the API.
         self.assertNotIn("literal=", Client._encode(params))
-        self.assertNotIn("q=", Client._encode(params))
+        self.assertNotIn("query=", Client._encode(params))
 
 
 class ReadCallPageTests(unittest.TestCase):

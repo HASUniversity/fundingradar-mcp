@@ -66,7 +66,7 @@ class FundingRadarService:
         body = self._api.get(
             "/api/v1/calls.php",
             {
-                "q": query,
+                "query": query,
                 "source": source,
                 "research_group": research_group,
                 "focus_area": focus_area,
