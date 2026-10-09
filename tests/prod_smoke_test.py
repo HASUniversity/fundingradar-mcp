@@ -61,6 +61,11 @@ def read_until(process: subprocess.Popen, wanted_id: int, limit: int = 20) -> di
 
 
 def main() -> int:
+    missing = [v for v in ("DB_HOST", "DB_NAME", "DB_USER", "DB_PASS") if not os.environ.get(v)]
+    if missing:
+        print("SKIPPED: this is a database-backed cross-check; set " + ", ".join(missing) + ".")
+        print("The API-only checks live in stdio_smoke_test.py and need no database.")
+        return 0
     secret = "fdr_" + "".join(secrets.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") for _ in range(28))
     token_hash = hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
